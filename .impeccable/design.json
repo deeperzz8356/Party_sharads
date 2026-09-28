@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-28T10:33:47.8347455Z",
+  "title": "Design System: Dumb Charades Party Hub",
+  "extensions": {
+    "colorMeta": {
+      "ink": { "role": "neutral", "displayName": "Show Ink", "canonical": "#111118", "tonalRamp": ["#111118", "#252533", "#3D3D4A", "#5A5967", "#7A7886", "#9F9DA8", "#C8C6CE", "#F2F0F4"] },
+      "ink-soft": { "role": "neutral", "displayName": "Soft Ink", "canonical": "#252533", "tonalRamp": ["#111118", "#252533", "#3D3D4A", "#5A5967", "#7A7886", "#9F9DA8", "#C8C6CE", "#F2F0F4"] },
+      "paper": { "role": "neutral", "displayName": "Warm Paper", "canonical": "#FFFCF5", "tonalRamp": ["#27241D", "#49453D", "#6E6960", "#938E84", "#B9B4A9", "#DDD8CF", "#F1ECE3", "#FFFCF5"] },
+      "surface": { "role": "neutral", "displayName": "Clean Surface", "canonical": "#FFFFFF", "tonalRamp": ["#242424", "#464646", "#696969", "#8D8D8D", "#B2B2B2", "#D5D5D5", "#EEEEEE", "#FFFFFF"] },
+      "surface-soft": { "role": "neutral", "displayName": "Soft Surface", "canonical": "#F2EEE5", "tonalRamp": ["#25221C", "#46423A", "#69645B", "#8D887E", "#B1ACA2", "#D4CFC5", "#E6E1D8", "#F7F3EA"] },
+      "text-muted": { "role": "neutral", "displayName": "Muted Copy", "canonical": "#5B5963", "tonalRamp": ["#1D1C22", "#37363E", "#53515B", "#716F79", "#918F99", "#B2B0B9", "#D5D3DA", "#F4F2F7"] },
+      "outline": { "role": "neutral", "displayName": "Stage Outline", "canonical": "#CBC5B9", "tonalRamp": ["#27231D", "#4B463D", "#6F695F", "#948E83", "#B9B3A8", "#D4CEC3", "#E8E2D8", "#F9F5ED"] },
+      "cue-pink": { "role": "primary", "displayName": "Cue Pink", "canonical": "#FF3D8D", "tonalRamp": ["#3F001A", "#69002E", "#940044", "#BF005D", "#EA1579", "#FF619E", "#FFAAC5", "#FFEAF1"] },
+      "cue-cobalt": { "role": "secondary", "displayName": "Stage Cobalt", "canonical": "#1F6FFF", "tonalRamp": ["#00183F", "#002E70", "#0047A6", "#0B60DA", "#397DFF", "#78A5FF", "#B5CBFF", "#EDF3FF"] },
+      "cue-yellow": { "role": "secondary", "displayName": "Cue Yellow", "canonical": "#FFD629", "tonalRamp": ["#342900", "#594800", "#806800", "#AA8B00", "#D6B20D", "#FFD94D", "#FFE99A", "#FFF9E6"] },
+      "cue-tangerine": { "role": "tertiary", "displayName": "Cue Tangerine", "canonical": "#FF7A2F", "tonalRamp": ["#3A1400", "#682700", "#963D00", "#C65406", "#EF6D22", "#FF9B61", "#FFC5A3", "#FFF0E5"] },
+      "cue-mint": { "role": "tertiary", "displayName": "Cue Mint", "canonical": "#42D99A", "tonalRamp": ["#002D1B", "#005137", "#007754", "#119E72", "#37C792", "#73E4B5", "#AFEFD4", "#E9FBF3"] },
+      "cue-lilac": { "role": "tertiary", "displayName": "Agent Lilac", "canonical": "#E7DFFF", "tonalRamp": ["#241B3D", "#453765", "#68558E", "#8D75B8", "#B39AE1", "#D0C0F4", "#E7DFFF", "#F8F5FF"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Short hero commands, player names, results, and urgent prompts." },
+      "headline": { "displayName": "Headline", "purpose": "Page titles and major game-state changes." },
+      "title": { "displayName": "Title", "purpose": "Cue-card titles and prominent row labels." },
+      "body": { "displayName": "Body", "purpose": "Rules and one-pass instructions." },
+      "label": { "displayName": "Label", "purpose": "Uppercase categories, counts, settings, and compact controls." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "game-card-press", "value": "scale(0.96)", "purpose": "Makes square game cards feel physical while pressed." },
+      { "name": "material-state", "value": "native Material 3 state layer", "purpose": "Provides familiar press, focus, selected, and disabled feedback on Android controls." },
+      { "name": "ready-countdown", "value": "700ms per count", "purpose": "Moves a handoff from three to play at a brisk party tempo." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "single-column page / two-column cue-card grid" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Party Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Full-width phase-changing action with blunt black-weight copy.",
+      "html": "<button class=\"ds-btn-primary\">READY TO PLAY</button>",
+      "css": ".ds-btn-primary{width:100%;height:60px;border:0;border-radius:16px;background:#FF3D8D;color:#fff;padding:0 20px;font:900 17px/1 Roboto,system-ui,sans-serif;letter-spacing:.02em;transition:transform 120ms ease,filter 120ms ease}.ds-btn-primary:hover{filter:brightness(.95)}.ds-btn-primary:active{transform:scale(.98)}.ds-btn-primary:focus-visible{outline:3px solid #1F6FFF;outline-offset:3px}"
+    },
+    {
+      "name": "Yellow Hero Action",
+      "kind": "button",
+      "refersTo": "button-yellow-action",
+      "description": "Optimistic ink-on-yellow entry action used inside a major cue card.",
+      "html": "<button class=\"ds-btn-yellow\">OPEN GAME HUB</button>",
+      "css": ".ds-btn-yellow{width:100%;height:64px;border:0;border-radius:16px;background:#FFD629;color:#111118;padding:0 20px;font:900 19px/1 Roboto,system-ui,sans-serif;transition:transform 120ms ease,filter 120ms ease}.ds-btn-yellow:hover{filter:brightness(.96)}.ds-btn-yellow:active{transform:scale(.98)}.ds-btn-yellow:focus-visible{outline:3px solid #1F6FFF;outline-offset:3px}"
+    },
+    {
+      "name": "Game Cue Card",
+      "kind": "card",
+      "refersTo": "game-card",
+      "description": "Square, color-coded game choice with an authored glyph and fixed information anatomy.",
+      "html": "<button class=\"ds-game-card\"><svg class=\"ds-game-glyph\" viewBox=\"0 0 48 48\" aria-hidden=\"true\"><circle cx=\"24\" cy=\"24\" r=\"18\"/><circle cx=\"17\" cy=\"20\" r=\"4\"/><circle cx=\"31\" cy=\"20\" r=\"4\"/><path d=\"M15 27c4 8 14 8 18 0\"/></svg><span class=\"ds-game-copy\"><strong>DUMB CHARADES</strong><b>2–20 PLAYERS</b><small>Act it out.</small></span></button>",
+      "css": ".ds-game-card{aspect-ratio:1;width:180px;border:0;border-radius:16px;background:#1F6FFF;color:#111118;padding:15px;text-align:left;display:flex;flex-direction:column;justify-content:space-between;font-family:Roboto,system-ui,sans-serif;transition:transform 120ms ease,filter 120ms ease}.ds-game-card:hover{filter:brightness(1.04)}.ds-game-card:active{transform:scale(.96)}.ds-game-card:focus-visible{outline:3px solid #111118;outline-offset:3px}.ds-game-glyph{width:48px;height:48px;fill:none;stroke:currentColor;stroke-width:5;stroke-linecap:round}.ds-game-glyph circle:nth-of-type(n+2){fill:currentColor;stroke:none}.ds-game-copy{display:flex;flex-direction:column;gap:4px}.ds-game-copy strong{font-size:20px;line-height:20px;font-weight:900}.ds-game-copy b{font-size:11px}.ds-game-copy small{font-size:13px;line-height:16px}"
+    },
+    {
+      "name": "Category Chips",
+      "kind": "chip",
+      "refersTo": "chip-selected",
+      "description": "Persistent equal-width filters that keep the active game family visible.",
+      "html": "<div class=\"ds-chip-row\" role=\"group\" aria-label=\"Game category\"><button class=\"ds-chip ds-chip-active\">ACT</button><button class=\"ds-chip\">SOCIAL</button><button class=\"ds-chip\">TRIVIA</button></div>",
+      "css": ".ds-chip-row{display:flex;gap:8px;width:100%}.ds-chip{flex:1;min-height:40px;border:1px solid #CBC5B9;border-radius:999px;background:#F2EEE5;color:#111118;font:900 12px/1 Roboto,system-ui,sans-serif;letter-spacing:.04em;transition:background 120ms ease,transform 120ms ease}.ds-chip:hover{background:#e8e3d9}.ds-chip:active{transform:scale(.97)}.ds-chip:focus-visible{outline:3px solid #1F6FFF;outline-offset:2px}.ds-chip-active{background:#1F6FFF;color:#fff;border-color:#1F6FFF}"
+    },
+    {
+      "name": "Player Name Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Single-line player entry paired with a same-height Add action.",
+      "html": "<div class=\"ds-player-entry\"><label class=\"ds-player-field\"><span>Player name</span><input type=\"text\" maxlength=\"30\" value=\"Asha\"></label><button class=\"ds-add\">ADD</button></div>",
+      "css": ".ds-player-entry{display:flex;gap:8px;align-items:stretch;font-family:Roboto,system-ui,sans-serif}.ds-player-field{height:56px;min-width:0;flex:1;border:1px solid #5B5963;border-radius:14px;background:#fff;padding:6px 14px;display:flex;flex-direction:column}.ds-player-field:focus-within{border:2px solid #FF3D8D;padding:5px 13px}.ds-player-field span{font-size:11px;color:#5B5963}.ds-player-field input{min-width:0;border:0;outline:0;background:transparent;color:#111118;font-size:17px}.ds-add{height:56px;border:0;border-radius:12px;background:#FF3D8D;color:#fff;padding:0 18px;font-weight:900}.ds-add:hover{filter:brightness(.95)}.ds-add:active{transform:scale(.97)}.ds-add:focus-visible{outline:3px solid #1F6FFF;outline-offset:2px}"
+    },
+    {
+      "name": "Removable Player Chip",
+      "kind": "chip",
+      "description": "Compact roster item that makes removal visible and direct.",
+      "html": "<button class=\"ds-player-chip\"><span>Asha</span><b aria-hidden=\"true\">×</b><span class=\"ds-sr\">Remove Asha</span></button>",
+      "css": ".ds-player-chip{width:170px;min-height:44px;border:0;border-radius:12px;background:#F2EEE5;color:#111118;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;font:700 16px/1 Roboto,system-ui,sans-serif;text-align:left;transition:background 120ms ease,transform 120ms ease}.ds-player-chip b{color:#FF3D8D;font-size:22px;line-height:1}.ds-player-chip:hover{background:#e8e3d9}.ds-player-chip:active{transform:scale(.98)}.ds-player-chip:focus-visible{outline:3px solid #1F6FFF;outline-offset:2px}.ds-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}"
+    },
+    {
+      "name": "Party Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Bordered white grouping surface for setup controls and results.",
+      "html": "<section class=\"ds-panel\"><header><i></i><strong>GAME OPTIONS</strong></header><p>Choose the controls and round length for this game.</p></section>",
+      "css": ".ds-panel{width:100%;border:2px solid rgba(255,214,41,.72);border-radius:16px;background:#fff;color:#111118;padding:18px;font-family:Roboto,system-ui,sans-serif}.ds-panel header{display:flex;align-items:center;gap:10px}.ds-panel i{width:14px;height:14px;border-radius:5px;background:#FFD629}.ds-panel strong{font-size:15px;letter-spacing:.8px}.ds-panel p{margin:10px 0 0;color:#5B5963;font-size:17px;line-height:24px}"
+    },
+    {
+      "name": "Party Mix Banner",
+      "kind": "nav",
+      "description": "Dark, high-priority shortcut into the curated multi-game playlist.",
+      "html": "<button class=\"ds-mix\"><span class=\"ds-mix-mark\">MIX</span><span><strong>PARTY MIX</strong><small>Eight modes. One playlist.</small></span></button>",
+      "css": ".ds-mix{width:100%;border:0;border-radius:16px;background:#111118;color:#fff;padding:18px;display:flex;gap:14px;align-items:center;text-align:left;font-family:Roboto,system-ui,sans-serif;transition:transform 120ms ease,background 120ms ease}.ds-mix-mark{width:48px;height:48px;border-radius:12px;background:#FFD629;color:#111118;display:grid;place-items:center;font-weight:900}.ds-mix>span:last-child{display:flex;flex-direction:column}.ds-mix strong{font-size:21px;font-weight:900}.ds-mix small{font-size:14px}.ds-mix:hover{background:#252533}.ds-mix:active{transform:scale(.98)}.ds-mix:focus-visible{outline:3px solid #1F6FFF;outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Sunlit Game-Show Cue Wall",
+    "overview": "The interface feels like a wall of brightly printed cue cards waiting backstage: warm white light, square color fields, blunt black lettering, and simple hand-drawn marks. It is funky and energetic without becoming visually noisy. Every screen should remain legible at arm's length and understandable in a loud room where the phone is moving between people.\n\nMaterial 3 provides the native Android behavior, while authored color, typography, geometry, and Canvas glyphs give the product its own voice. Interaction is direct and physical: cards compress when pressed, chosen controls fill with color, private reveals ask for deliberate taps, and the primary action stays obvious at the end of each setup or handoff.",
+    "keyCharacteristics": [
+      "Warm, sunlit stage instead of a sterile white app canvas.",
+      "Cobalt, pink, yellow, mint, tangerine, and lilac cue cards with ink-first contrast.",
+      "Bold, compact type that reads like game-show prompts rather than editorial copy.",
+      "Square game cards, persistent category controls, and authored Canvas glyphs.",
+      "Player-first setup with compact removable chips and a fixed, full-width Ready action.",
+      "Native Material 3 behavior, large touch targets, and color-independent labels."
+    ],
+    "rules": [
+      { "name": "The Cue-Card Contrast Rule", "body": "Use Show Ink on every light cue color; reserve white type for dark panels, selected cobalt controls, and pink surfaces whose contrast has been explicitly checked.", "section": "colors" },
+      { "name": "The Color Has a Job Rule", "body": "Color identifies game families, categories, state, or action. Do not scatter accent colors as decoration with no interaction or recognition purpose.", "section": "colors" },
+      { "name": "The Shout, Then Explain Rule", "body": "Lead with one short black-weight command or state, then follow with one plain-language sentence. Never make players parse a paragraph before they can act.", "section": "typography" },
+      { "name": "The Arm's-Length Rule", "body": "Gameplay prompts and handoff names use headline or display size; 11–13sp type is reserved for metadata, never required instructions.", "section": "typography" },
+      { "name": "The Flat Stage Rule", "body": "Do not add ambient card shadows. Create hierarchy through cue color, warm tonal layering, borders, and scale response.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use the warm paper stage and low-opacity corner washes to keep light screens optimistic rather than clinical.",
+      "Do keep game cards square, use the stable glyph/title/player-count/premise anatomy, and preserve two-column scanning.",
+      "Do show per-game rules before deck and roster setup.",
+      "Do retain persistent category controls and pair every color family with a written category or game label.",
+      "Do prioritize the shared player roster, revealing team controls only for games that benefit from teams.",
+      "Do use authored Canvas marks with thick, rounded geometry for game identity.",
+      "Do preserve Material 3 semantics, native focus/state behavior, and large pass-the-phone targets."
+    ],
+    "donts": [
+      "Don't introduce gradients, glass effects, neon-on-black styling, or ambient card shadows.",
+      "Don't turn the hub into a generic list, carousel, or icon-only grid; the visible square cue wall is the product's central browsing pattern.",
+      "Don't replace game glyphs with a mixed collection of emoji or third-party icon styles.",
+      "Don't force formal team creation before collecting the people in the room.",
+      "Don't hide rules, player counts, selected categories, or the Ready action behind ambiguous gestures.",
+      "Don't use tiny supporting type for gameplay instructions or rely on sound alone to signal a phase change."
+    ]
+  }
+}
