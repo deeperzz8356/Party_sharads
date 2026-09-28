@@ -44,3 +44,5 @@ For production, set `REPOSITORY_BACKEND=firestore`, `FIREBASE_PROJECT_ID=project
 Open `android` in Android Studio (JDK 17, Android SDK 35). Set `DUMB_API_BASE_URL` in your user Gradle properties. Firebase configuration is provided by `app/google-services.json`; Email/Password and Google Sign-In are enabled for `com.dumbcharades.app`. The app remains playable offline after a user has signed in.
 
 The Firebase Android config is not a service-account credential and is safe to bundle with the app. Service-account credentials and signing keys must never be committed.
+
+# Party_sharads
