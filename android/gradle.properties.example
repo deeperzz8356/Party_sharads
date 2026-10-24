@@ -1,1 +1,1 @@
-DUMB_API_BASE_URL=https://your-render-service.onrender.com/
+# Firebase uses app/google-services.json; no API server URL or login configuration is required.

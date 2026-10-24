@@ -13,6 +13,7 @@ import com.dumbcharades.app.data.AuthUser
 import com.dumbcharades.app.data.GameRepository
 import com.dumbcharades.app.data.LocalStats
 import com.dumbcharades.app.data.SettingsStore
+import com.dumbcharades.app.game.guide
 import com.dumbcharades.app.game.GameEngine
 import com.dumbcharades.app.model.Deck
 import com.dumbcharades.app.model.GameMode
@@ -46,8 +47,8 @@ data class AppUiState(
     val loading: Boolean = true,
     val message: String? = null,
     val stats: LocalStats = LocalStats(),
+    val history: List<GameSession> = emptyList(),
     val user: AuthUser? = null,
-    val authLoading: Boolean = false,
 )
 
 @HiltViewModel
@@ -65,12 +66,38 @@ class AppViewModel @Inject constructor(
     private var timer: Job? = null
 
     init {
+        viewModelScope.launch { repository.history.collect { history -> mutable.value = mutable.value.copy(history = history) } }
         viewModelScope.launch {
             repository.ensureBundledDecks()
-            repository.restoreSession()?.let { mutable.value = mutable.value.copy(session = it, matchSettings = it.settings) }
+            var initialized = false
+            var previousUid: String? = null
             authRepository.user.collectLatest { user ->
-                if (user != null) repository.refresh().onFailure {
-                    mutable.value = mutable.value.copy(message = "Offline mode: using downloaded decks")
+                val activatingDevice = initialized && previousUid == null && user != null
+                initialized = true
+                previousUid = user?.uid
+                if (user != null) repository.adoptDeviceData(user.uid)
+                // Obtaining the first device identity must not interrupt a game
+                // already running offline. Its guest rows have just been adopted.
+                if (!activatingDevice) {
+                    timer?.cancel()
+                    mutable.value = mutable.value.copy(session = null, runtime = null, matchSettings = MatchSettings())
+                }
+                val restored = if (activatingDevice) mutable.value.session else repository.restoreSession()
+                if (!activatingDevice) restored?.let {
+                    mutable.value = mutable.value.copy(session = it, matchSettings = it.settings)
+                }
+                val restoredSettings = mutable.value.matchSettings
+                if (user != null) {
+                    repository.refresh().onFailure {
+                        mutable.value = mutable.value.copy(message = "Offline mode: using downloaded decks")
+                    }
+                    if (!activatingDevice && authRepository.user.value?.uid == user.uid && mutable.value.runtime == null
+                        && mutable.value.matchSettings == restoredSettings
+                        && (mutable.value.session == null || mutable.value.session == restored)) {
+                        repository.restoreSession()?.let {
+                            mutable.value = mutable.value.copy(session = it, matchSettings = it.settings)
+                        }
+                    }
                 }
             }
         }
@@ -86,42 +113,6 @@ class AppViewModel @Inject constructor(
     fun setSoundVolume(value: Float) = viewModelScope.launch { settingsStore.setSoundVolume(value) }
     fun setSoundPack(value: String) = viewModelScope.launch { settingsStore.setSoundPack(value) }
     fun dismissMessage() { mutable.value = mutable.value.copy(message = null) }
-    fun reportAuthError(message: String?) { mutable.value = mutable.value.copy(message = message ?: "Authentication failed") }
-    fun signIn(email: String, password: String, onSuccess: () -> Unit) = viewModelScope.launch {
-        mutable.value = mutable.value.copy(authLoading = true)
-        try {
-            authRepository.signIn(email, password)
-            settingsStore.setGuestMode(false)
-            onSuccess()
-        } catch (error: Throwable) { reportAuthError(error.message) }
-        mutable.value = mutable.value.copy(authLoading = false)
-    }
-    fun createAccount(email: String, password: String, onSuccess: () -> Unit) = viewModelScope.launch {
-        mutable.value = mutable.value.copy(authLoading = true)
-        try {
-            authRepository.createAccount(email, password)
-            settingsStore.setGuestMode(false)
-            onSuccess()
-        } catch (error: Throwable) { reportAuthError(error.message) }
-        mutable.value = mutable.value.copy(authLoading = false)
-    }
-    fun signInWithGoogle(idToken: String, onSuccess: () -> Unit) = viewModelScope.launch {
-        mutable.value = mutable.value.copy(authLoading = true)
-        try {
-            authRepository.signInWithGoogle(idToken)
-            settingsStore.setGuestMode(false)
-            onSuccess()
-        } catch (error: Throwable) { reportAuthError(error.message) }
-        mutable.value = mutable.value.copy(authLoading = false)
-    }
-    fun continueAsGuest(onSuccess: () -> Unit) = viewModelScope.launch {
-        settingsStore.setGuestMode(true)
-        onSuccess()
-    }
-    fun signOut() = viewModelScope.launch {
-        settingsStore.setGuestMode(false)
-        authRepository.signOut()
-    }
     fun chooseGame(gameType: GameType) {
         val inputMode = if (gameType == GameType.SOUND_EFFECTS) GameMode.FOREHEAD_TILT else GameMode.CLASSIC_TOUCH
         mutable.value = mutable.value.copy(matchSettings = mutable.value.matchSettings.copy(gameType = gameType, playlist = emptyList(), mode = inputMode))
@@ -151,19 +142,20 @@ class AppViewModel @Inject constructor(
         mutable.value = mutable.value.copy(matchSettings = mutable.value.matchSettings.copy(teams = teams))
     }
 
+    fun setTeams(teams: List<Team>) {
+        require(teams.isNotEmpty() && teams.all { it.players.isNotEmpty() })
+        val players = teams.flatMap { it.players }
+        require(players.size <= 20 && players.all { it.isNotBlank() } && players.map { it.lowercase() }.distinct().size == players.size)
+        mutable.value = mutable.value.copy(matchSettings = mutable.value.matchSettings.copy(teams = teams))
+    }
+
     fun prepareMatch(): Boolean {
         val selected = mutable.value.matchSettings.deckIds
         if (selected.isEmpty()) { mutable.value = mutable.value.copy(message = "Choose a deck first"); return false }
         val settings = mutable.value.matchSettings
         val playerCount = settings.teams.sumOf { it.players.size }
         val activeModes = settings.playlist.ifEmpty { listOf(settings.gameType) }
-        fun minimumPlayers(type: GameType) = when (type) {
-            GameType.INSIDE_VOICE -> 5
-            GameType.IMPOSTOR_MIME, GameType.CROWD_TRAP, GameType.SIGNAL_LINE, GameType.MIME_TELEPHONE -> 4
-            GameType.BLANK_AGENT, GameType.MOST_LIKELY, GameType.FAKE_IT, GameType.TWIN_WORD_SPY -> 3
-            else -> 2
-        }
-        val required = activeModes.maxOf(::minimumPlayers)
+        val required = activeModes.maxOf { it.guide().minimumPlayers }
         if (playerCount < required) {
             mutable.value = mutable.value.copy(message = "This playlist needs at least $required player names")
             return false
@@ -228,7 +220,12 @@ class AppViewModel @Inject constructor(
         viewModelScope.launch { repository.saveSession(session) }
     }
     fun nextRound() { mutable.value = mutable.value.copy(runtime = null) }
-    fun rematch() { val settings = mutable.value.session?.settings ?: return; mutable.value = mutable.value.copy(session = GameSession(settings = settings), runtime = null) }
+    fun rematch() {
+        val previous = mutable.value.session ?: return
+        val session = engine.rematch(previous)
+        mutable.value = mutable.value.copy(session = session, matchSettings = session.settings, runtime = null)
+        viewModelScope.launch { repository.saveSession(session) }
+    }
     fun endMatch() = viewModelScope.launch {
         val session = mutable.value.session ?: return@launch
         val completed = session.copy(completed = true, updatedAt = Instant.now().toString())

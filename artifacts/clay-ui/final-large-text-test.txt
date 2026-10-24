@@ -1,0 +1,38 @@
+INSTRUMENTATION_STATUS: class=com.dumbcharades.app.AppLaunchTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stream=
+com.dumbcharades.app.AppLaunchTest:
+INSTRUMENTATION_STATUS: test=device_can_enter_games_without_login_and_play_a_round
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.dumbcharades.app.AppLaunchTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: Assert failed: The component is not displayed!
+	at androidx.compose.ui.test.AssertionsKt.assertIsDisplayed(Assertions.kt:34)
+	at com.dumbcharades.app.AppLaunchTest.device_can_enter_games_without_login_and_play_a_round(AppLaunchTest.kt:55)
+
+INSTRUMENTATION_STATUS: stream=
+Error in device_can_enter_games_without_login_and_play_a_round(com.dumbcharades.app.AppLaunchTest):
+java.lang.AssertionError: Assert failed: The component is not displayed!
+	at androidx.compose.ui.test.AssertionsKt.assertIsDisplayed(Assertions.kt:34)
+	at com.dumbcharades.app.AppLaunchTest.device_can_enter_games_without_login_and_play_a_round(AppLaunchTest.kt:55)
+
+INSTRUMENTATION_STATUS: test=device_can_enter_games_without_login_and_play_a_round
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_RESULT: stream=
+
+Time: 5.502
+There was 1 failure:
+1) device_can_enter_games_without_login_and_play_a_round(com.dumbcharades.app.AppLaunchTest)
+java.lang.AssertionError: Assert failed: The component is not displayed!
+	at androidx.compose.ui.test.AssertionsKt.assertIsDisplayed(Assertions.kt:34)
+	at com.dumbcharades.app.AppLaunchTest.device_can_enter_games_without_login_and_play_a_round(AppLaunchTest.kt:55)
+
+FAILURES!!!
+Tests run: 1,  Failures: 1
+
+
+INSTRUMENTATION_CODE: -1

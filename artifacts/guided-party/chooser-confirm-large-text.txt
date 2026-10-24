@@ -1,0 +1,8 @@
+
+com.dumbcharades.app.AppLaunchTest:.
+
+Time: 18.159
+
+OK (1 test)
+
+

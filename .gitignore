@@ -1,5 +1,9 @@
 .idea/
 .gradle/
+.kotlin/
+**/.kotlin/
+*-debug.log
+*-debug.*.log
 **/build/
 local.properties
 .env
@@ -7,6 +11,9 @@ local.properties
 __pycache__/
 .pytest_cache/
 *.pyc
+firebase-debug*.log
+firestore-debug.log
+ui-debug.log
 .adal 
 .agent 
 .agents
@@ -37,8 +44,9 @@ __pycache__/
 .windsurf 
 .zencoder 
 skills
-backend/.firebaserc
-backend/firebase.json
 backend/firestore.rules
 docs
-android/app/google-services.json
+
+# Build outputs and test screenshots kept locally, not in git
+*.apk
+artifacts/**/*.png

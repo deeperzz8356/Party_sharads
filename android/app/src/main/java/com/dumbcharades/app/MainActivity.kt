@@ -1,12 +1,9 @@
 package com.dumbcharades.app
 
 /*
-THESIS: A sunlit game-show cue wall makes seventeen games readable at party distance and refuses the dark list-of-cards dashboard.
-OWN-WORLD: Warm white stage, ink-black type, square cobalt/pink/yellow/mint/tangerine cue cards, compact radii, and bold category bands.
-STORY: Pick a category, recognize a game, learn its rules, add the people in the room, and start without administrative setup.
-FIRST VIEWPORT: PARTY MODE sits above category bands and a two-column wall of square game cards; the cards are the navigation.
-FORM: Game-show cue wall, assigned grounded direction 6, seed 8b231192.
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+Clay party shelf: warm cream, cocoa lettering, terracotta actions and denim-blue
+selection frame the seventeen approved clay cover illustrations. Native controls
+keep discovery and pass-the-phone play direct. No login or onboarding gate.
 */
 
 import android.app.Activity
@@ -16,20 +13,19 @@ import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.provider.MediaStore
+import android.provider.Settings
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
-import androidx.credentials.ClearCredentialStateRequest
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,6 +36,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -48,13 +48,20 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -66,11 +73,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -80,6 +90,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Typography
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -89,7 +102,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.SideEffect
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
@@ -98,13 +113,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -113,17 +140,25 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.dumbcharades.app.game.PartyMood
+import com.dumbcharades.app.game.guide
+import com.dumbcharades.app.game.recommendGames
+import com.dumbcharades.app.game.partyTeams
 import com.dumbcharades.app.game.TiltController
 import com.dumbcharades.app.game.TiltGesture
 import com.dumbcharades.app.model.GameMode
 import com.dumbcharades.app.model.GameType
 import com.dumbcharades.app.model.PromptStatus
+import com.dumbcharades.app.model.GameSession
+import com.dumbcharades.app.model.Deck
+import com.dumbcharades.app.ui.savedScore
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import com.dumbcharades.app.ui.AppUiState
 import com.dumbcharades.app.ui.AppViewModel
-import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.animation.core.animateFloatAsState
 
@@ -136,87 +171,402 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Play flow: hub → game page (rules, example, cards) → players → ready → play.
 private object Routes {
-    const val SPLASH = "splash"
-    const val AUTH = "auth"
-    const val ONBOARDING = "onboarding"
-    const val HOME = "home"
     const val GAMES = "games"
     const val RULES = "rules"
-    const val DECKS = "decks"
     const val SETUP = "setup"
+    const val CHOOSER = "chooser"
     const val READY = "ready"
     const val GAME = "game"
     const val SUMMARY = "summary"
     const val FINAL = "final"
+    const val CREATE_DECK = "create-deck"
     const val CUSTOM = "custom"
     const val SETTINGS = "settings"
 }
 
-private val Ink = Color(0xFF111118)
-private val InkSoft = Color(0xFF252533)
-private val Paper = Color(0xFFFFFCF5)
-private val Pink = Color(0xFFFF3D8D)
-private val Acid = Color(0xFFFFD629)
-private val Sky = Color(0xFF1F6FFF)
-private val Tangerine = Color(0xFFFF7A2F)
-private val Green = Color(0xFF42D99A)
+private val Ink = Color(0xFF35251F)
+private val InkSoft = Color(0xFF67514A)
+private val Paper = Color(0xFFFFF6E9)
+private val Pink = Color(0xFFE7654F)
+private val Acid = Color(0xFFF4C75D)
+private val Sky = Color(0xFF365E9D)
+private val Tangerine = Color(0xFFF2AB7B)
+private val Green = Color(0xFF9AC7AA)
 private val Yellow = Tangerine
 private val Purple = Pink
 private val Background = Paper
-private val PartyShape = RoundedCornerShape(16.dp)
+private val PartyShape = RoundedCornerShape(22.dp)
+private fun funkyShape(key: String): Shape = RoundedCornerShape(22.dp)
+private val PartyFont = FontFamily(
+    Font(R.font.nunito_medium, FontWeight.Normal),
+    Font(R.font.nunito_medium, FontWeight.Medium),
+    Font(R.font.nunito_semibold, FontWeight.SemiBold),
+    Font(R.font.nunito_bold, FontWeight.Bold),
+    Font(R.font.nunito_extrabold, FontWeight.ExtraBold),
+    Font(R.font.nunito_black, FontWeight.Black),
+)
 private val PartyTypography = Typography(
-    displayLarge = TextStyle(fontSize = 50.sp, lineHeight = 48.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.2).sp),
-    headlineLarge = TextStyle(fontSize = 34.sp, lineHeight = 35.sp, fontWeight = FontWeight.Black, letterSpacing = (-.6).sp),
-    headlineMedium = TextStyle(fontSize = 26.sp, lineHeight = 28.sp, fontWeight = FontWeight.ExtraBold),
-    titleLarge = TextStyle(fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.ExtraBold),
-    bodyLarge = TextStyle(fontSize = 17.sp, lineHeight = 24.sp),
-    labelLarge = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.ExtraBold),
+    displayLarge = TextStyle(fontFamily = PartyFont, fontSize = 46.sp, lineHeight = 49.sp, fontWeight = FontWeight.Black, letterSpacing = (-1).sp),
+    headlineLarge = TextStyle(fontFamily = PartyFont, fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, letterSpacing = (-.5).sp),
+    headlineMedium = TextStyle(fontFamily = PartyFont, fontSize = 25.sp, lineHeight = 29.sp, fontWeight = FontWeight.ExtraBold),
+    titleLarge = TextStyle(fontFamily = PartyFont, fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.ExtraBold),
+    titleMedium = TextStyle(fontFamily = PartyFont, fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold),
+    bodyLarge = TextStyle(fontFamily = PartyFont, fontSize = 17.sp, lineHeight = 24.sp),
+    bodyMedium = TextStyle(fontFamily = PartyFont, fontSize = 15.sp, lineHeight = 21.sp),
+    bodySmall = TextStyle(fontFamily = PartyFont, fontSize = 13.sp, lineHeight = 18.sp),
+    labelLarge = TextStyle(fontFamily = PartyFont, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.ExtraBold),
+    labelMedium = TextStyle(fontFamily = PartyFont, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold),
+    labelSmall = TextStyle(fontFamily = PartyFont, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold),
 )
 
 @Composable
 fun DumbCharadesApp(viewModel: AppViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    SideEffect {
+        (context as? Activity)?.let { activity ->
+            val light = state.settings.theme != "HIGH_CONTRAST"
+            WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
+                isAppearanceLightStatusBars = light
+                isAppearanceLightNavigationBars = light
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 29) activity.window.isNavigationBarContrastEnforced = false
+        }
+    }
     val nav = rememberNavController()
     val snackbar = remember { SnackbarHostState() }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     LaunchedEffect(state.message) {
         state.message?.let { snackbar.showSnackbar(it); viewModel.dismissMessage() }
     }
     val colors = when (state.settings.theme) {
         "HIGH_CONTRAST" -> darkColorScheme(primary = Color.White, secondary = Color.Yellow, background = Color.Black, surface = Color.Black)
-        else -> lightColorScheme(primary = Pink, onPrimary = Color.White, secondary = Sky, onSecondary = Color.White, tertiary = Tangerine, background = Paper, onBackground = Ink, surface = Color.White, onSurface = Ink, surfaceVariant = Color(0xFFF2EEE5), onSurfaceVariant = Color(0xFF5B5963), outline = Color(0xFFCBC5B9))
+        else -> lightColorScheme(primary = Color(0xFFA43C2D), onPrimary = Color.White, secondary = Sky, onSecondary = Color.White, tertiary = Tangerine, background = Paper, onBackground = Ink, surface = Color(0xFFFFFCF6), onSurface = Ink, surfaceVariant = Color(0xFFF5E6D5), onSurfaceVariant = InkSoft, outline = Color(0xFFD9BFA9))
     }
     MaterialTheme(colorScheme = colors, typography = PartyTypography, shapes = Shapes(small = RoundedCornerShape(12.dp), medium = PartyShape, large = RoundedCornerShape(30.dp))) {
         Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
-            NavHost(nav, Routes.SPLASH, Modifier.padding(padding)) {
-                composable(Routes.SPLASH) { SplashScreen(state) { nav.replace(if (state.user == null && !state.settings.guestMode) Routes.AUTH else if (state.settings.onboardingComplete) Routes.HOME else Routes.ONBOARDING) } }
-                composable(Routes.AUTH) { AuthScreen(state, viewModel) { nav.replace(if (state.settings.onboardingComplete) Routes.HOME else Routes.ONBOARDING) } }
-                composable(Routes.ONBOARDING) { OnboardingScreen { viewModel.completeOnboarding(); nav.replace(Routes.HOME) } }
-                composable(Routes.HOME) { HomeScreen(state, onPlay = { nav.navigate(Routes.GAMES) }, onCustom = { nav.navigate(Routes.CUSTOM) }, onSettings = { nav.navigate(Routes.SETTINGS) }, onResume = { nav.navigate(Routes.READY) }) }
+            NavHost(nav, Routes.GAMES, Modifier.padding(padding)) {
                 composable(Routes.GAMES) {
                     GameHubScreen(
+                        state = state,
+                        onSettings = { nav.navigate(Routes.SETTINGS) },
+                        onCustom = { nav.navigate(Routes.CREATE_DECK) },
+                        useDeck = { id -> viewModel.chooseGame(GameType.CHARADES); viewModel.chooseDeck(id); nav.navigate(Routes.SETUP) },
+                        onResume = { nav.navigate(Routes.READY) },
+                        helpChoose = { nav.navigate(Routes.CHOOSER) },
                         choose = { game -> viewModel.chooseGame(game); nav.navigate(Routes.RULES) },
-                        partyMix = {
-                            viewModel.choosePlaylist(listOf(GameType.CHARADES, GameType.BLANK_AGENT, GameType.CROWD_TRAP, GameType.IMPOSTOR_MIME, GameType.SIGNAL_LINE, GameType.BOMB_DEFUSAL, GameType.REVERSE_CHARADES, GameType.SOUND_EFFECTS))
-                            nav.navigate(Routes.DECKS)
-                        },
+                        partyMix = { viewModel.choosePlaylist(partyMixGames); nav.navigate(Routes.RULES) },
                     )
                 }
-                composable(Routes.RULES) { GameRulesScreen(state.matchSettings.gameType, onContinue = { nav.navigate(Routes.DECKS) }) }
-                composable(Routes.DECKS) { DeckScreen(state, { id -> viewModel.chooseDeck(id); nav.navigate(Routes.SETUP) }, { nav.navigate(Routes.CUSTOM) }) }
-                composable(Routes.SETUP) { SetupScreen(state, viewModel) { if (viewModel.prepareMatch()) nav.navigate(Routes.READY) } }
-                composable(Routes.READY) { ReadyScreen(state, onStart = { viewModel.startRound(); nav.navigate(Routes.GAME) }, onQuit = { nav.replace(Routes.HOME) }) }
-                composable(Routes.GAME) { GameScreen(state, viewModel, finish = { viewModel.finishRound(); nav.replace(Routes.SUMMARY) }, specialFinish = { won -> viewModel.finishSpecialRound(won); nav.replace(Routes.SUMMARY) }, quit = { nav.replace(Routes.HOME) }) }
-                composable(Routes.SUMMARY) { SummaryScreen(state, viewModel, onContinue = { if (state.session?.completed == true) nav.replace(Routes.FINAL) else { viewModel.nextRound(); nav.replace(Routes.READY) } }, onEnd = { viewModel.endMatch(); nav.replace(Routes.FINAL) }) }
-                composable(Routes.FINAL) { FinalScreen(state, onRematch = { viewModel.rematch(); nav.replace(Routes.READY) }, onHome = { nav.replace(Routes.HOME) }) }
-                composable(Routes.CUSTOM) { CustomDeckScreen(viewModel) { id -> viewModel.chooseDeck(id); nav.replace(Routes.SETUP) } }
-                composable(Routes.SETTINGS) {
-                    SettingsScreen(state, viewModel) {
-                        viewModel.signOut()
-                        scope.launch { runCatching { CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest()) } }
-                        nav.replace(Routes.AUTH)
+                composable(Routes.CHOOSER) { GameChooserScreen(onBack = { nav.popBackStack() }) { game, quick ->
+                    viewModel.chooseGame(game)
+                    viewModel.setTimer(if (quick) 30 else 60)
+                    viewModel.setRounds(if (quick) 3 else 5)
+                    nav.navigate(Routes.RULES)
+                } }
+                composable(Routes.RULES) { GameRulesScreen(state, onBack = { nav.popBackStack() }, choosePack = viewModel::chooseDeck, custom = { nav.navigate(Routes.CUSTOM) }, onContinue = { nav.navigate(Routes.SETUP) }) }
+                composable(Routes.SETUP) { SetupScreen(state, viewModel, onBack = { nav.popBackStack() }) { if (viewModel.prepareMatch()) nav.playStep(Routes.READY) } }
+                composable(Routes.READY) { ReadyScreen(state, onStart = { viewModel.startRound(); nav.playStep(Routes.GAME) }, onQuit = { nav.home() }) }
+                composable(Routes.GAME) {
+                    var confirmExit by remember { mutableStateOf(false) }
+                    BackHandler { confirmExit = true }
+                    GameScreen(state, viewModel, finish = { viewModel.finishRound(); nav.playStep(Routes.SUMMARY) }, specialFinish = { won -> viewModel.finishSpecialRound(won); nav.playStep(Routes.SUMMARY) }, quit = { confirmExit = true })
+                    if (confirmExit) AlertDialog(
+                        onDismissRequest = { confirmExit = false },
+                        title = { Text("Leave this round?") },
+                        text = { Text("Your game is saved. Tap Continue on the home screen to replay this round.") },
+                        confirmButton = { TextButton({
+                            if (state.runtime?.paused == false) viewModel.pause()
+                            confirmExit = false
+                            nav.home()
+                        }) { Text("Leave round") } },
+                        dismissButton = { TextButton({ confirmExit = false }) { Text("Keep playing") } },
+                    )
+                }
+                composable(Routes.SUMMARY) { SummaryScreen(state, viewModel, onContinue = { if (state.session?.completed == true) nav.playStep(Routes.FINAL) else { viewModel.nextRound(); nav.playStep(Routes.READY) } }, onEnd = { viewModel.endMatch(); nav.playStep(Routes.FINAL) }) }
+                composable(Routes.FINAL) { FinalScreen(state, onRematch = { viewModel.rematch(); nav.playStep(Routes.READY) }, onHome = { nav.home() }) }
+                composable(Routes.CREATE_DECK) { CustomDeckScreen(viewModel, onBack = { nav.popBackStack() }, useAfterSave = false) { nav.popBackStack() } }
+                composable(Routes.CUSTOM) { CustomDeckScreen(viewModel, onBack = { nav.popBackStack() }) { id -> viewModel.chooseDeck(id); nav.popBackStack() } }
+                composable(Routes.SETTINGS) { SettingsScreen(state, viewModel, onBack = { nav.popBackStack() }) }
+
+            }
+        }
+    }
+}
+
+// Every in-game screen sits directly above the hub, so system Back always lands on Home.
+private fun NavController.playStep(route: String) = navigate(route) {
+    popUpTo(Routes.GAMES)
+    launchSingleTop = true
+}
+
+// A fresh hub entry opens on the Home tab, where the Continue card lives.
+private fun NavController.home() = navigate(Routes.GAMES) {
+    popUpTo(graph.findStartDestination().id) { inclusive = true }
+}
+
+private val partyMixGames = listOf(GameType.CHARADES, GameType.BLANK_AGENT, GameType.CROWD_TRAP, GameType.IMPOSTOR_MIME, GameType.SIGNAL_LINE, GameType.BOMB_DEFUSAL, GameType.REVERSE_CHARADES, GameType.SOUND_EFFECTS)
+
+/** Titles of the bundled packs that suit acting games; matches GameRepository.promptsFor. */
+private val actingPackTitles = setOf("Hollywood Movies", "Bollywood Hits", "TV Shows & Anime", "Famous Personalities", "Actions & Verbs", "Pop Songs & Bands", "Brands & Logos", "Wild Scenes", "After Dark")
+
+private fun GameType.builtInPack(): String? = when (this) {
+    GameType.SOUND_EFFECTS -> "Sound Lab"
+    GameType.BOMB_DEFUSAL -> "Five Second Frenzy"
+    GameType.BLANK_AGENT, GameType.INSIDE_VOICE -> "Secret Words"
+    GameType.CROWD_TRAP -> "Crowd Questions"
+    GameType.SIGNAL_LINE -> "Signal Lines"
+    GameType.MOST_LIKELY -> "Most Likely"
+    GameType.NEVER_HAVE_I_EVER -> "Never Have I Ever"
+    GameType.FAKE_IT -> "Fake It Trivia"
+    GameType.DRAW_AND_GUESS -> "Draw & Guess"
+    GameType.WOULD_YOU_RATHER -> "Would You Rather"
+    GameType.TWIN_WORD_SPY -> "Twin Words"
+    GameType.IMPOSTOR_MIME, GameType.MIME_TELEPHONE -> "Wild Scenes"
+    else -> null
+}
+
+/** Packs the players can actually choose between. Most games use one built-in pack. */
+private fun AppUiState.packChoices(): List<Deck> {
+    val usable = decks.filter { !it.deleted }
+    val game = matchSettings.gameType
+    val acting = usable.filter { it.custom || it.title in actingPackTitles }
+    val choices = when {
+        matchSettings.playlist.isNotEmpty() || game == GameType.CHARADES -> acting
+        game == GameType.REVERSE_CHARADES -> usable.filter { it.custom || it.title in setOf("Actions & Verbs", "Wild Scenes") }
+        game == GameType.TRUTH_OR_DARE -> usable.filter { it.title in setOf("Truth or Dare", "Truth or Dare After Dark") }
+        else -> usable.filter { it.title == game.builtInPack() }
+    }
+    return choices.ifEmpty { usable }
+}
+
+private fun GameType.isTimed(): Boolean = this in setOf(GameType.CHARADES, GameType.SOUND_EFFECTS, GameType.REVERSE_CHARADES, GameType.BOMB_DEFUSAL)
+
+private enum class GameCategory(val tab: String, val title: String, val strapline: String, val color: Color) {
+    ACTING("Act it out", "Acting & performance", "Get up. Make a scene.", Sky),
+    SOCIAL("Talk & bluff", "Social & secret roles", "Big personalities. Little secrets.", Pink),
+    CREATIVE("Think & draw", "Words, trivia & creative", "Quick minds. Wild ideas.", Green),
+}
+
+private data class HubGame(val type: GameType, val title: String, val subtitle: String, val color: Color, val category: GameCategory)
+
+private val offlineGameCatalog = listOf(
+    HubGame(GameType.CHARADES, "DUMB CHARADES", "Act it out.", Acid, GameCategory.ACTING),
+    HubGame(GameType.IMPOSTOR_MIME, "IMPOSTOR MIME", "Blend into the action.", Green, GameCategory.ACTING),
+    HubGame(GameType.REVERSE_CHARADES, "REVERSE CHARADES", "The room performs.", Tangerine, GameCategory.ACTING),
+    HubGame(GameType.SOUND_EFFECTS, "SOUND EFFECTS", "Make noise, not words.", Color(0xFFE7DFFF), GameCategory.ACTING),
+    HubGame(GameType.BLANK_AGENT, "BLANK AGENT", "Clue without knowing.", Color(0xFFE7DFFF), GameCategory.SOCIAL),
+    HubGame(GameType.INSIDE_VOICE, "INSIDE VOICE", "Find the hidden influence.", Acid, GameCategory.SOCIAL),
+    HubGame(GameType.CROWD_TRAP, "CROWD TRAP", "Move with the majority.", Green, GameCategory.SOCIAL),
+    HubGame(GameType.SIGNAL_LINE, "SIGNAL LINE", "Read the room.", Tangerine, GameCategory.SOCIAL),
+    HubGame(GameType.TRUTH_OR_DARE, "TRUTH OR DARE", "Answer or do it.", Sky, GameCategory.SOCIAL),
+    HubGame(GameType.MOST_LIKELY, "MOST LIKELY", "Pick who fits.", Acid, GameCategory.SOCIAL),
+    HubGame(GameType.NEVER_HAVE_I_EVER, "NEVER HAVE I EVER", "Five hearts to survive.", Color(0xFFE7DFFF), GameCategory.SOCIAL),
+    HubGame(GameType.WOULD_YOU_RATHER, "WOULD YOU RATHER", "Choose your side.", Green, GameCategory.SOCIAL),
+    HubGame(GameType.MIME_TELEPHONE, "MIME TELEPHONE", "Pass the meaning.", Acid, GameCategory.CREATIVE),
+    HubGame(GameType.FAKE_IT, "FAKE IT", "Bluff the room.", Color(0xFFE7DFFF), GameCategory.CREATIVE),
+    HubGame(GameType.DRAW_AND_GUESS, "DRAW & GUESS", "Sketch against time.", Tangerine, GameCategory.CREATIVE),
+    HubGame(GameType.BOMB_DEFUSAL, "5-SECOND BOMB", "Name three. Pass fast.", Sky, GameCategory.CREATIVE),
+    HubGame(GameType.TWIN_WORD_SPY, "TWIN WORD SPY", "Spot the odd word.", Pink, GameCategory.CREATIVE),
+)
+private data class FakeOption(val text: String, val author: Int? = null, val correct: Boolean = false)
+private data class DrawMark(val point: Offset?, val color: Color, val width: Float)
+
+private enum class HubTab(val label: String, val icon: Int) {
+    HOME("Home", R.drawable.nav_home), GAMES("Games", R.drawable.nav_games),
+    MY_DECKS("My decks", R.drawable.nav_decks), SCORES("Scores", R.drawable.nav_scores),
+}
+
+@Composable
+private fun GameHubScreen(
+    state: AppUiState, choose: (GameType) -> Unit, partyMix: () -> Unit,
+    onSettings: () -> Unit, onCustom: () -> Unit, onResume: () -> Unit, useDeck: (String) -> Unit, helpChoose: () -> Unit,
+) {
+    var tab by rememberSaveable { mutableStateOf(HubTab.HOME) }
+    var selectedCategory by rememberSaveable { mutableStateOf(GameCategory.ACTING) }
+    val homeScroll = rememberLazyListState()
+    val gamesScroll = rememberLazyListState()
+    val decksScroll = rememberLazyListState()
+    val scoresScroll = rememberLazyListState()
+    val colors = MaterialTheme.colorScheme
+    BackHandler(enabled = tab != HubTab.HOME) { tab = HubTab.HOME }
+    Column(Modifier.fillMaxSize().background(colors.background)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(tab.label, Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+            IconButton(onSettings, Modifier.size(48.dp)) { Icon(painterResource(R.drawable.nav_settings), contentDescription = "Settings", tint = colors.primary) }
+        }
+        when (tab) {
+            HubTab.HOME -> LazyColumn(
+                Modifier.weight(1f).padding(horizontal = 18.dp), state = homeScroll,
+                verticalArrangement = Arrangement.spacedBy(22.dp), contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+            ) {
+                item(key = "welcome") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Good times\nstart here.", fontSize = 34.sp, lineHeight = 37.sp, fontWeight = FontWeight.Black)
+                        Text("Pick a game, add your friends, pass the phone.", color = colors.onSurfaceVariant, fontSize = 15.sp)
+                    }
+                }
+                if (state.session?.completed == false) item(key = "resume") {
+                    Surface(onClick = onResume, color = colors.secondary, contentColor = colors.onSecondary, shape = PartyShape, modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            GameCover(state.session.activeGameType, Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Continue ${if (state.session.settings.playlist.isNotEmpty()) "Party mix" else state.session.activeGameType.displayName().friendlyTitle()}", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                                Text("Round ${state.session.currentRound + 1}${state.session.settings.totalRounds?.let { " of $it" } ?: ""} · ${state.session.settings.teams.sumOf { it.players.size }} players", fontSize = 13.sp)
+                            }
+                            Text("→", fontSize = 22.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+                item(key = "start") {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StartChoice("Help us pick a game", "Answer 3 quick questions", colors.primary, colors.onPrimary, helpChoose)
+                        StartChoice("Browse all ${offlineGameCatalog.size} games", "Sorted by the kind of fun", colors.surface, colors.onSurface) { tab = HubTab.GAMES }
+                    }
+                }
+                item(key = "quick") {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Easy first games", style = MaterialTheme.typography.titleLarge)
+                            Text("No explaining needed. Tap one to start.", color = colors.onSurfaceVariant, fontSize = 13.sp)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            listOf(GameType.CHARADES, GameType.WOULD_YOU_RATHER, GameType.DRAW_AND_GUESS).forEach { game ->
+                                val name = game.displayName().friendlyTitle()
+                                Column(
+                                    Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).clickable(role = Role.Button) { choose(game) },
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    GameCover(game, Modifier.fillMaxWidth().aspectRatio(.9f).clip(RoundedCornerShape(18.dp)))
+                                    Text(name, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, lineHeight = 18.sp, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                }
+                item(key = "mix") {
+                    Surface(onClick = partyMix, color = Acid, contentColor = Ink, shape = PartyShape, modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Party mix", fontSize = 21.sp, fontWeight = FontWeight.Black)
+                                Text("A different game every round. ${partyMixGames.size} games, one scoreboard.", fontSize = 13.sp)
+                            }
+                            Text("→", fontWeight = FontWeight.Black, fontSize = 22.sp)
+                        }
+                    }
+                }
+            }
+            HubTab.GAMES -> LazyColumn(
+                Modifier.weight(1f).padding(horizontal = 18.dp), state = gamesScroll,
+                verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+            ) {
+                item(key = "categories") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        GameCategory.entries.forEach { category ->
+                            val active = selectedCategory == category
+                            Surface(
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { selected = active }.clickable(role = Role.Tab) { selectedCategory = category },
+                                color = if (active) colors.secondary else colors.surfaceVariant,
+                                contentColor = if (active) colors.onSecondary else colors.onSurfaceVariant,
+                                shape = RoundedCornerShape(14.dp),
+                            ) {
+                                Box(Modifier.padding(horizontal = 4.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
+                                    Text(category.tab, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
+                    }
+                }
+                item(key = "category-heading") {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(selectedCategory.title, style = MaterialTheme.typography.titleLarge)
+                        Text("${selectedCategory.strapline} Tap a game to see how it works.", color = colors.onSurfaceVariant, fontSize = 13.sp)
+                    }
+                }
+                items(offlineGameCatalog.filter { it.category == selectedCategory }.sortedBy { if (it.type.guide().easy) 0 else 1 }.chunked(2), key = { row -> row.joinToString { it.type.name } }) { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        row.forEach { game -> GameTile(game, { choose(game.type) }, Modifier.weight(1f)) }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+            HubTab.MY_DECKS -> LazyColumn(
+                Modifier.weight(1f).padding(horizontal = 18.dp), state = decksScroll,
+                verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
+            ) {
+                item(key = "decks-heading") {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Make it\npersonal.", fontSize = 34.sp, lineHeight = 37.sp, fontWeight = FontWeight.Black)
+                        Text("Inside jokes make the best cards.", color = colors.onSurfaceVariant)
+                        Surface(color = Acid, contentColor = Ink, shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Text("A deck only your people could make.", fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Black)
+                                Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    PromptPostcard("Dance like\na robot", -5f, Modifier.weight(1f))
+                                    PromptPostcard("Your friend's\nsignature move", 5f, Modifier.weight(1f))
+                                }
+                                PartyButton("Create a deck", onCustom)
+                            }
+                        }
+                    }
+                }
+                val customDecks = state.decks.filter { it.custom && !it.deleted }
+                item(key = "saved-heading") { Text("Your collection", style = MaterialTheme.typography.titleLarge) }
+                if (customDecks.isEmpty()) item(key = "empty-decks") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Nothing here yet. Make the first one.", fontWeight = FontWeight.Bold)
+                        Text("Name it, add your prompts, then bring it to the party.", color = colors.onSurfaceVariant)
+                    }
+                }
+                items(customDecks, key = { it.id }) { deck ->
+                    Surface(color = colors.surface, shape = PartyShape, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(deck.title, style = MaterialTheme.typography.titleLarge)
+                            Text("${deck.cardCount} cards", color = colors.onSurfaceVariant, fontSize = 13.sp)
+                            if (deck.description.isNotBlank()) Text(deck.description, color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                            OutlinedButton({ useDeck(deck.id) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Play charades") }
+                        }
+                    }
+                }
+            }
+            HubTab.SCORES -> LazyColumn(
+                Modifier.weight(1f).padding(horizontal = 18.dp), state = scoresScroll,
+                verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
+            ) {
+                item(key = "scoreboard-heading") {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Surface(color = Acid, contentColor = Ink, shape = RoundedCornerShape(22.dp), modifier = Modifier.size(72.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.nav_scores), null, Modifier.size(40.dp)) }
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Keep the bragging rights.", style = MaterialTheme.typography.titleLarge)
+                            Text("Your saved matches, newest first.", color = colors.onSurfaceVariant, fontSize = 13.sp)
+                        }
+                    }
+                }
+                if (state.history.isEmpty()) item(key = "empty-scores") {
+                    Column(Modifier.padding(vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("The scoreboard is yours to start.", style = MaterialTheme.typography.headlineMedium)
+                        Text("Finish a round and its saved score will appear here. Completed matches show the winner or a tie.", color = colors.onSurfaceVariant)
+                        PartyButton("Browse games", { tab = HubTab.GAMES })
+                    }
+                }
+                items(state.history, key = { it.id }) { session -> SavedScoreCard(session) }
+            }
+        }
+        Row(Modifier.fillMaxWidth().background(colors.surface).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            HubTab.entries.forEach { destination ->
+                val active = tab == destination
+                Surface(
+                    modifier = Modifier.weight(1f).heightIn(min = 56.dp).semantics { selected = active }.clickable(role = Role.Tab) { tab = destination },
+                    color = if (active) colors.secondary else Color.Transparent,
+                    contentColor = if (active) colors.onSecondary else colors.onSurfaceVariant,
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Column(Modifier.padding(horizontal = 3.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(painterResource(destination.icon), contentDescription = null, modifier = Modifier.size(24.dp))
+                        Text(destination.label, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -225,429 +575,486 @@ fun DumbCharadesApp(viewModel: AppViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun AuthScreen(state: AppUiState, vm: AppViewModel, onAuthenticated: () -> Unit) {
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var creatingAccount by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    Page(if (creatingAccount) "JOIN THE PARTY" else "WELCOME BACK", scrollable = true, eyebrow = "PLAYER PROFILE") {
-        Card(Modifier.fillMaxWidth(), shape = PartyShape, colors = CardDefaults.cardColors(containerColor = Sky), border = BorderStroke(2.dp, Ink)) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(if (creatingAccount) "SAVE THE CHAOS." else "ROUND TWO?", style = MaterialTheme.typography.headlineMedium, color = Color.White)
-                Text("Sync custom decks and match history across your devices.", color = Color.White.copy(alpha = .78f))
+private fun StartChoice(title: String, detail: String, background: Color, content: Color, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick, color = background, contentColor = content, shape = PartyShape,
+        border = if (background == MaterialTheme.colorScheme.surface) BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline) else null,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, fontSize = 19.sp, lineHeight = 23.sp, fontWeight = FontWeight.Black)
+                Text(detail, fontSize = 13.sp, lineHeight = 17.sp)
             }
+            Text("→", fontSize = 22.sp, fontWeight = FontWeight.Black)
         }
-        OutlinedTextField(email, { email = it }, label = { Text("Email") }, singleLine = true, shape = PartyShape, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(password, { password = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, shape = PartyShape, modifier = Modifier.fillMaxWidth())
-        PartyButton(if (creatingAccount) "CREATE ACCOUNT" else "LET'S GO", onClick = {
-            if (creatingAccount) vm.createAccount(email, password, onAuthenticated) else vm.signIn(email, password, onAuthenticated)
-        }, enabled = !state.authLoading)
-        OutlinedButton(
-            onClick = {
-                scope.launch {
-                    runCatching {
-                        val clientIdResource = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-                        require(clientIdResource != 0) { "Google Sign-In is not configured" }
-                        val googleOption = GetSignInWithGoogleOption.Builder(context.getString(clientIdResource)).build()
-                        val request = GetCredentialRequest.Builder().addCredentialOption(googleOption).build()
-                        val credential = CredentialManager.create(context).getCredential(context, request).credential
-                        require(credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                            "Google did not return an ID token"
-                        }
-                        GoogleIdTokenCredential.createFrom(credential.data).idToken
-                    }.onSuccess { vm.signInWithGoogle(it, onAuthenticated) }
-                        .onFailure { vm.reportAuthError(it.message) }
+    }
+}
+
+@Composable
+private fun PromptPostcard(text: String, angle: Float, modifier: Modifier = Modifier) {
+    Surface(modifier.graphicsLayer { rotationZ = angle }, color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(14.dp)) {
+        Column(Modifier.padding(14.dp).heightIn(min = 100.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Icon(painterResource(R.drawable.nav_decks), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+            Text(text, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, lineHeight = 18.sp)
+        }
+    }
+}
+
+@Composable
+private fun SavedScoreCard(session: GameSession) {
+    val colors = MaterialTheme.colorScheme
+    val score = session.savedScore()
+    var expanded by rememberSaveable(session.id) { mutableStateOf(false) }
+    val date = remember(session.updatedAt) {
+        runCatching { DateTimeFormatter.ofPattern("d MMM yyyy · h:mm a", Locale.getDefault()).withZone(ZoneId.systemDefault()).format(Instant.parse(session.updatedAt)) }.getOrDefault("Date unavailable")
+    }
+    Surface(color = colors.surface, shape = PartyShape, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                GameCover(session.settings.gameType, Modifier.size(56.dp).clip(RoundedCornerShape(14.dp)))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(if (session.settings.playlist.isNotEmpty()) "Party mix" else session.settings.gameType.displayName().friendlyTitle(), style = MaterialTheme.typography.titleMedium)
+                    Text(date, color = colors.onSurfaceVariant, fontSize = 12.sp)
+                    Text("${session.rounds.size} ${if (session.rounds.size == 1) "round" else "rounds"} · ${if (session.completed) "Finished" else "In progress"}", color = colors.onSurfaceVariant, fontSize = 12.sp)
                 }
-            },
-            enabled = !state.authLoading,
-            modifier = Modifier.fillMaxWidth().height(56.dp), shape = PartyShape,
-        ) { Text("CONTINUE WITH GOOGLE") }
-        TextButton(onClick = { vm.continueAsGuest(onAuthenticated) }, modifier = Modifier.fillMaxWidth()) { Text("PLAY OFFLINE AS GUEST") }
-        TextButton(onClick = { creatingAccount = !creatingAccount }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Text(if (creatingAccount) "Already have an account? Sign in" else "New here? Create an account")
-        }
-        if (state.authLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-    }
-}
-
-private fun NavController.replace(route: String) = navigate(route) {
-    popUpTo(graph.findStartDestination().id) { inclusive = true }
-    launchSingleTop = true
-}
-
-@Composable
-private fun SplashScreen(state: AppUiState, ready: () -> Unit) {
-    LaunchedEffect(state.loading) { if (!state.loading) ready() }
-    Box(Modifier.fillMaxSize().background(Pink), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawCircle(Acid, size.minDimension * .32f, Offset(size.width * .18f, size.height * .2f))
-            drawCircle(Sky, size.minDimension * .26f, Offset(size.width * .86f, size.height * .8f))
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("DUMB\nCHARADES", style = MaterialTheme.typography.displayLarge, color = Color.White, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(24.dp)); CircularProgressIndicator(color = Acid, strokeWidth = 6.dp)
-        }
-    }
-}
-
-@Composable
-private fun OnboardingScreen(onDone: () -> Unit) {
-    var page by remember { mutableStateOf(0) }
-    val titles = listOf("Hold it high", "Tilt to score", "Mime. Don't blab.")
-    val bodies = listOf("Put the phone against your forehead so everyone else can see the prompt.", "Tilt down when they guess it. Tilt up when the clue is hopeless.", "Act, gesture and make a fool of yourself. Just don't say the answer.")
-    val symbols = listOf("UP", "TILT", "SHH")
-    Page(title = "HOW TO PLAY") {
-        Spacer(Modifier.weight(1f))
-        Surface(shape = CircleShape, color = listOf(Sky, Acid, Tangerine)[page], modifier = Modifier.size(150.dp)) {
-            Box(contentAlignment = Alignment.Center) { Text(symbols[page], fontSize = 32.sp, color = Ink, fontWeight = FontWeight.Black) }
-        }
-        Text("${page + 1} OF 3", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
-        Text(titles[page], style = MaterialTheme.typography.headlineLarge, textAlign = TextAlign.Center)
-        Text(bodies[page], style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 18.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            repeat(3) { index -> Box(Modifier.height(8.dp).width(if (index == page) 34.dp else 8.dp).background(if (index == page) Pink else MaterialTheme.colorScheme.outline, CircleShape)) }
-        }
-        Spacer(Modifier.weight(1f))
-        PartyButton(if (page < 2) "GOT IT" else "PLAY AS GUEST", onClick = { if (page < 2) page++ else onDone() })
-    }
-}
-
-@Composable
-private fun HomeScreen(state: AppUiState, onPlay: () -> Unit, onCustom: () -> Unit, onSettings: () -> Unit, onResume: () -> Unit) {
-    Page(title = "PARTY MODE", eyebrow = "17 GAMES. ZERO DIGNITY.") {
-        Card(Modifier.fillMaxWidth(), shape = PartyShape, colors = CardDefaults.cardColors(containerColor = Pink), border = BorderStroke(2.dp, Color.White.copy(alpha = .75f))) {
-            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("PICK A GAME.\nCAUSE CHAOS.", style = MaterialTheme.typography.displayLarge, color = Ink)
-                Text("Act, bluff, draw, make noise or beat the bomb.", color = Ink, fontSize = 18.sp)
-                Button(onClick = onPlay, modifier = Modifier.fillMaxWidth().height(64.dp), colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = Ink), shape = PartyShape) { Text("OPEN GAME HUB", fontSize = 19.sp, fontWeight = FontWeight.Black) }
             }
-        }
-        if (state.session?.completed == false) OutlinedButton(onClick = onResume, modifier = Modifier.fillMaxWidth()) { Text("RESUME MATCH") }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatBadge("${state.stats.gamesPlayed}", "games", Modifier.weight(1f))
-            StatBadge("${state.stats.totalGuessed}", "guessed", Modifier.weight(1f))
-            StatBadge("${state.stats.accuracyPercent}%", "accuracy", Modifier.weight(1f))
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeCard("PLAY", "DECKS", "${state.decks.size} ready", Sky, onPlay, Modifier.weight(1f))
-            HomeCard("NEW", "MAKE ONE", "Your inside jokes", Tangerine, onCustom, Modifier.weight(1f))
-        }
-        HomeCard("SET", "SETTINGS", "Tilt, sound and themes", Acid, onSettings, Modifier.fillMaxWidth())
-    }
-}
-
-private data class HubGame(val type: GameType, val mark: String, val title: String, val subtitle: String, val color: Color, val category: String)
-private data class FakeOption(val text: String, val author: Int? = null, val correct: Boolean = false)
-private data class DrawMark(val point: Offset?, val color: Color, val width: Float)
-
-@Composable
-private fun GameHubScreen(choose: (GameType) -> Unit, partyMix: () -> Unit) {
-    val games = listOf(
-        HubGame(GameType.CHARADES, "ACT", "DUMB CHARADES", "Act it out.", Sky, "ACT"),
-        HubGame(GameType.IMPOSTOR_MIME, "MIM", "IMPOSTOR MIME", "Blend into the action.", Pink, "ACT"),
-        HubGame(GameType.REVERSE_CHARADES, "REV", "REVERSE", "The room performs.", Acid, "ACT"),
-        HubGame(GameType.SOUND_EFFECTS, "SFX", "SOUND ONLY", "Make noise, not words.", Green, "ACT"),
-        HubGame(GameType.BLANK_AGENT, "BLK", "BLANK AGENT", "Clue without knowing.", Color(0xFFE7DFFF), "TALK"),
-        HubGame(GameType.INSIDE_VOICE, "YES?", "INSIDE VOICE", "Find the hidden influence.", Sky, "TALK"),
-        HubGame(GameType.CROWD_TRAP, "VOTE", "CROWD TRAP", "Move with the majority.", Tangerine, "TALK"),
-        HubGame(GameType.SIGNAL_LINE, "LINE", "SIGNAL LINE", "Read the room.", Green, "TALK"),
-        HubGame(GameType.TRUTH_OR_DARE, "T/D", "TRUTH OR DARE", "Answer or do it.", Pink, "TALK"),
-        HubGame(GameType.MOST_LIKELY, "WHO", "MOST LIKELY", "Pick who fits.", Acid, "TALK"),
-        HubGame(GameType.NEVER_HAVE_I_EVER, "5X", "NEVER HAVE I EVER", "Five hearts to survive.", Tangerine, "TALK"),
-        HubGame(GameType.WOULD_YOU_RATHER, "A/B", "WOULD YOU RATHER", "Choose your side.", Sky, "TALK"),
-        HubGame(GameType.MIME_TELEPHONE, "CHAIN", "MIME TELEPHONE", "Pass the meaning.", Tangerine, "CREATE"),
-        HubGame(GameType.FAKE_IT, "LIE", "FAKE IT", "Bluff the room.", Pink, "CREATE"),
-        HubGame(GameType.DRAW_AND_GUESS, "DRAW", "DRAW & GUESS", "Sketch against time.", Green, "CREATE"),
-        HubGame(GameType.BOMB_DEFUSAL, "5S", "5-SECOND BOMB", "Name three. Pass fast.", Acid, "CREATE"),
-        HubGame(GameType.TWIN_WORD_SPY, "SPY", "TWIN WORD SPY", "Spot the odd word.", Sky, "CREATE"),
-    )
-    val categories = listOf(Triple("ACT", "ACTING GAMES", Sky), Triple("TALK", "SOCIAL + TALK", Pink), Triple("CREATE", "TRIVIA + DRAWING", Acid))
-    var selectedCategory by remember { mutableStateOf("ACT") }
-    Page("PARTY MODE") {
-        Card(Modifier.fillMaxWidth().clickable(onClick = partyMix), shape = PartyShape, colors = CardDefaults.cardColors(containerColor = Ink)) {
-            Row(Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(48.dp).background(Acid, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Text("MIX", color = Ink, fontWeight = FontWeight.Black) }
-                Column { Text("PARTY MIX", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Black); Text("Eight modes. One playlist.", color = Color.White) }
+            Surface(color = if (session.completed) Acid else colors.surfaceVariant, contentColor = if (session.completed) Ink else colors.onSurfaceVariant, shape = RoundedCornerShape(12.dp)) {
+                Text(score.result, Modifier.fillMaxWidth().padding(12.dp), fontWeight = FontWeight.ExtraBold)
             }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            categories.forEach { (id, title, color) ->
-                FilterChip(
-                    selected = selectedCategory == id,
-                    onClick = { selectedCategory = id },
-                    label = { Text(title.substringBefore(" "), fontWeight = FontWeight.Black) },
-                    modifier = Modifier.weight(1f),
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = color, selectedLabelColor = gameForeground(color)),
-                )
+            score.teams.forEach { team ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(team.name, fontWeight = FontWeight.Bold)
+                        Text(team.players.joinToString(", "), color = colors.onSurfaceVariant, fontSize = 12.sp, lineHeight = 16.sp)
+                    }
+                    Text("${team.points} ${if (kotlin.math.abs(team.points) == 1) "pt" else "pts"}", color = colors.primary, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                }
             }
-        }
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            val (_, title, color) = categories.first { it.first == selectedCategory }
-            item(key = "header-$selectedCategory") { Surface(color = color, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) { Text(title, Modifier.padding(horizontal = 16.dp, vertical = 12.dp), color = gameForeground(color), fontWeight = FontWeight.Black, fontSize = 19.sp) } }
-            items(games.filter { it.category == selectedCategory }.chunked(2), key = { row -> row.joinToString { it.type.name } }) { row ->
+            if (session.rounds.isNotEmpty()) TextButton({ expanded = !expanded }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(if (expanded) "Hide rounds" else "Round details", fontWeight = FontWeight.Bold)
+            }
+            if (expanded) session.rounds.forEachIndexed { index, round ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    row.forEach { game -> GameTile(game, { choose(game.type) }, Modifier.weight(1f)) }
-                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                    Text("${index + 1}. ${round.actorName} · ${round.gameType.displayName().friendlyTitle()}", Modifier.weight(1f), fontSize = 13.sp, lineHeight = 18.sp)
+                    Text("${round.score} ${if (kotlin.math.abs(round.score) == 1) "pt" else "pts"}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }
     }
+}
+
+private fun String.friendlyTitle(): String = lowercase().split(" ").withIndex().joinToString(" ") { (index, word) ->
+    if (index > 0 && word in setOf("or", "of", "and")) word else word.replaceFirstChar { it.titlecase() }
 }
 
 @Composable
 private fun GameTile(game: HubGame, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) .96f else 1f, label = "game-tile-press")
-    val content = gameForeground(game.color)
-    Card(
-        modifier.aspectRatio(1f).graphicsLayer { scaleX = scale; scaleY = scale }
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
-        shape = PartyShape,
-        colors = CardDefaults.cardColors(containerColor = game.color),
+    val scale by animateFloatAsState(if (pressed) .97f else 1f, label = "game-tile-press")
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier.graphicsLayer { scaleX = scale; scaleY = scale }.clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick),
+        color = colors.surface, shape = RoundedCornerShape(22.dp),
     ) {
-        Column(Modifier.fillMaxSize().padding(15.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            GameGlyph(game.type, content)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(game.title, color = content, fontSize = 20.sp, lineHeight = 20.sp, fontWeight = FontWeight.Black)
-                Text(game.type.playerLabel(), color = content, fontSize = 11.sp, fontWeight = FontWeight.Black)
-                Text(game.subtitle, color = content, fontSize = 13.sp, lineHeight = 16.sp)
+        Column {
+            GameCover(game.type, Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(22.dp)))
+            Column(Modifier.padding(horizontal = 11.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(game.title.friendlyTitle(), color = colors.onSurface, fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Black, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(game.type.guide().premise, color = colors.onSurfaceVariant, fontSize = 13.sp, lineHeight = 17.sp, minLines = 3, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text("${game.type.minimumPlayers()}+ players · ${game.type.difficultyLabel()}", color = colors.secondary, fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
+    }
+}
+
+private fun GameType.coverResource(): Int = when (this) {
+    GameType.CHARADES -> R.drawable.cover_charades
+    GameType.IMPOSTOR_MIME -> R.drawable.cover_impostor_mime
+    GameType.BLANK_AGENT -> R.drawable.cover_blank_agent
+    GameType.INSIDE_VOICE -> R.drawable.cover_inside_voice
+    GameType.CROWD_TRAP -> R.drawable.cover_crowd_trap
+    GameType.SIGNAL_LINE -> R.drawable.cover_signal_line
+    GameType.TRUTH_OR_DARE -> R.drawable.cover_truth_or_dare
+    GameType.MOST_LIKELY -> R.drawable.cover_most_likely
+    GameType.NEVER_HAVE_I_EVER -> R.drawable.cover_never_have_i_ever
+    GameType.FAKE_IT -> R.drawable.cover_fake_it
+    GameType.DRAW_AND_GUESS -> R.drawable.cover_draw_and_guess
+    GameType.WOULD_YOU_RATHER -> R.drawable.cover_would_you_rather
+    GameType.TWIN_WORD_SPY -> R.drawable.cover_twin_word_spy
+    GameType.REVERSE_CHARADES -> R.drawable.cover_reverse_charades
+    GameType.MIME_TELEPHONE -> R.drawable.cover_mime_telephone
+    GameType.SOUND_EFFECTS -> R.drawable.cover_sound_effects
+    GameType.BOMB_DEFUSAL -> R.drawable.cover_bomb_defusal
+}
+
+@Composable
+private fun GameCover(game: GameType, modifier: Modifier = Modifier) {
+    Image(painterResource(game.coverResource()), contentDescription = null,
+        modifier = modifier, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+}
+
+@Composable
+private fun GameChooserScreen(onBack: () -> Unit, choose: (GameType, Boolean) -> Unit) {
+    var step by rememberSaveable { mutableStateOf(0) }
+    var count by rememberSaveable { mutableStateOf("4") }
+    var mood by rememberSaveable { mutableStateOf(PartyMood.ACT) }
+    var quick by rememberSaveable { mutableStateOf(true) }
+    var alternative by rememberSaveable { mutableStateOf(0) }
+    val chooserScroll = rememberLazyListState()
+    LaunchedEffect(step, alternative) { chooserScroll.scrollToItem(0) }
+    val players = count.toIntOrNull()
+    val valid = players != null && players in 2..20
+    val recommendations = if (valid) recommendGames(players!!, mood, quick) else emptyList()
+    val recommendation = recommendations.getOrNull(alternative % recommendations.size.coerceAtLeast(1))
+    val colors = MaterialTheme.colorScheme
+    fun back() { if (step > 0) step-- else onBack() }
+    BackHandler { back() }
+    Page(if (step < 3) "Help us choose" else "Your game pick", onBack = { back() }) {
+        LazyColumn(Modifier.weight(1f), state = chooserScroll, verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+            if (step < 3) item { Text("${step + 1} of 3", color = colors.onSurfaceVariant, fontSize = 13.sp) }
+            when (step) {
+                0 -> item {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("How many people are playing?", style = MaterialTheme.typography.headlineMedium)
+                        Text("We'll suggest games that fit. Add names after choosing.", color = colors.onSurfaceVariant)
+                        OutlinedTextField(count, { count = it.filter(Char::isDigit).take(2) }, label = { Text("Number of players") }, singleLine = true,
+                            modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                            isError = !valid, supportingText = { Text("Choose 2–20 people") }, shape = PartyShape)
+                    }
+                }
+                1 -> {
+                    item { Text("What's the room in the mood for?", style = MaterialTheme.typography.headlineMedium) }
+                    items(PartyMood.entries, key = { it.name }) { option ->
+                        ChoiceRow(option.label, when (option) { PartyMood.ACT -> "Act, mime and make silly sounds."; PartyMood.TALK -> "Share answers, vote or spot a bluff."; PartyMood.THINK -> "Draw, guess and think on your feet." }, mood == option) { mood = option }
+                    }
+                }
+                2 -> {
+                    item { Text("How much time have you got?", style = MaterialTheme.typography.headlineMedium) }
+                    item { ChoiceRow("A quick round", "Easy to jump into, with fewer rounds.", quick) { quick = true } }
+                    item { ChoiceRow("A longer game", "More rounds and room to learn something new.", !quick) { quick = false } }
+                }
+                else -> if (recommendation != null) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            GameCover(recommendation, Modifier.fillMaxWidth().aspectRatio(1.5f).clip(PartyShape))
+                            Text(recommendation.displayName().friendlyTitle(), style = MaterialTheme.typography.headlineLarge)
+                            Text(recommendation.guide().premise, style = MaterialTheme.typography.bodyLarge)
+                            Text("Fits $players players · ${if (recommendation.guide().easy) "Easy to start" else "Needs explaining"}", color = colors.secondary, fontWeight = FontWeight.Bold)
+                            Text(if (quick) "A simple pick for a quick round." else "A good fit for your mood, with more rounds to enjoy.", color = colors.onSurfaceVariant)
+                        }
+                    }
+                    if (recommendations.size > 1) item {
+                        TextButton({ alternative++ }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Show another") }
+                    }
+                }
+            }
+        }
+        PartyButton(when (step) { 0, 1 -> "Next"; 2 -> "Find our game"; else -> "Play this" }, {
+            if (step < 3) { alternative = 0; step++ } else recommendation?.let { choose(it, quick) }
+        }, enabled = valid && (step < 3 || recommendation != null))
     }
 }
 
 @Composable
-private fun GameGlyph(game: GameType, color: Color) {
-    Canvas(Modifier.size(48.dp)) {
-        val stroke = size.minDimension * .10f
-        val c = Offset(size.width / 2f, size.height / 2f)
-        val variant = game.ordinal
-        drawCircle(color, radius = size.minDimension * .38f, center = c, style = Stroke(stroke))
-        when (game) {
-            GameType.CHARADES, GameType.REVERSE_CHARADES, GameType.IMPOSTOR_MIME, GameType.MIME_TELEPHONE -> {
-                drawCircle(color, size.minDimension * .08f, Offset(size.width * .35f, size.height * .42f))
-                drawCircle(color, size.minDimension * .08f, Offset(size.width * .65f, size.height * .42f))
-                drawArc(color, 20f, 140f, false, topLeft = Offset(size.width * .27f, size.height * .40f), size = androidx.compose.ui.geometry.Size(size.width * .46f, size.height * .34f), style = Stroke(stroke))
-            }
-            GameType.SOUND_EFFECTS -> repeat(3) { index ->
-                val x = size.width * (.32f + index * .18f)
-                val half = size.height * (.12f + index * .055f)
-                drawLine(color, Offset(x, c.y - half), Offset(x, c.y + half), stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-            }
-            GameType.BLANK_AGENT, GameType.INSIDE_VOICE, GameType.TWIN_WORD_SPY -> {
-                drawCircle(color, size.minDimension * .10f, Offset(size.width * .38f, size.height * .43f))
-                drawLine(color, Offset(size.width * .54f, size.height * .38f), Offset(size.width * .69f, size.height * .60f), stroke)
-                drawCircle(color, size.minDimension * .045f, Offset(size.width * .69f, size.height * .69f))
-            }
-            GameType.CROWD_TRAP, GameType.MOST_LIKELY, GameType.SIGNAL_LINE -> repeat(3) { index ->
-                drawCircle(color, size.minDimension * .075f, Offset(size.width * (.32f + index * .18f), size.height * (.42f + (index % 2) * .15f)))
-            }
-            GameType.TRUTH_OR_DARE, GameType.WOULD_YOU_RATHER -> {
-                drawLine(color, Offset(size.width * .32f, size.height * .30f), Offset(size.width * .68f, size.height * .70f), stroke)
-                drawLine(color, Offset(size.width * .68f, size.height * .30f), Offset(size.width * .32f, size.height * .70f), stroke)
-            }
-            GameType.NEVER_HAVE_I_EVER -> repeat(3) { index -> drawCircle(color, size.minDimension * .07f, Offset(size.width * (.32f + index * .18f), c.y)) }
-            GameType.FAKE_IT -> {
-                drawLine(color, Offset(size.width * .29f, c.y), Offset(size.width * .71f, c.y), stroke)
-                drawCircle(color, size.minDimension * .07f, Offset(size.width * .68f, size.height * .36f))
-            }
-            GameType.DRAW_AND_GUESS -> {
-                drawLine(color, Offset(size.width * .30f, size.height * .67f), Offset(size.width * .68f, size.height * .29f), stroke)
-                drawCircle(color, size.minDimension * .065f, Offset(size.width * .30f, size.height * .67f))
-            }
-            GameType.BOMB_DEFUSAL -> {
-                drawCircle(color, size.minDimension * .17f, Offset(c.x, size.height * .57f))
-                drawLine(color, Offset(c.x, size.height * .38f), Offset(size.width * .65f, size.height * .27f), stroke)
-            }
+private fun ChoiceRow(title: String, detail: String, active: Boolean, select: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier = Modifier.fillMaxWidth().semantics { selected = active }.clickable(role = Role.RadioButton, onClick = select),
+        color = if (active) colors.secondary else colors.surface, contentColor = if (active) colors.onSecondary else colors.onSurface,
+        shape = PartyShape,
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Text(detail, fontSize = 14.sp, lineHeight = 20.sp)
         }
-        repeat(variant % 3) { index -> drawCircle(color, size.minDimension * .025f, Offset(size.width * (.38f + index * .12f), size.height * .82f)) }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GameRulesScreen(game: GameType, onContinue: () -> Unit) {
-    val color = game.gameColor()
-    val content = gameForeground(color)
-    Page(game.displayName(), scrollable = true) {
-        Surface(Modifier.fillMaxWidth(), color = color, shape = PartyShape) {
-            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(game.playerLabel(), color = content, fontWeight = FontWeight.Black)
-                Text(game.teamRule(), color = content, fontSize = 27.sp, lineHeight = 31.sp, fontWeight = FontWeight.Black)
-            }
-        }
-        Text("HOW TO PLAY", Modifier.fillMaxWidth(), fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 1.sp)
-        game.rules().forEachIndexed { index, rule ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
-                Surface(color = color, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(42.dp)) { Box(contentAlignment = Alignment.Center) { Text("${index + 1}", color = content, fontWeight = FontWeight.Black) } }
-                Text(rule, Modifier.weight(1f).padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge)
-            }
-        }
-        Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant, shape = PartyShape) {
-            Text("The app handles the order, timers, private reveals and scoring. You only need the people in the room.", Modifier.padding(18.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        PartyButton("CHOOSE A CARD PACK", onContinue)
-    }
-}
-
-@Composable private fun HomeCard(symbol: String, title: String, subtitle: String, color: Color, click: () -> Unit, modifier: Modifier) {
-    Card(modifier.clickable(onClick = click), shape = PartyShape, colors = CardDefaults.cardColors(containerColor = color), border = BorderStroke(2.dp, Ink)) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(symbol, fontSize = 28.sp)
-            Text(title, color = Ink, fontWeight = FontWeight.Black, fontSize = 18.sp)
-            Text(subtitle, color = Ink.copy(alpha = .68f), fontSize = 13.sp)
-        }
-    }
-}
-
-@Composable
-private fun DeckScreen(state: AppUiState, choose: (String) -> Unit, custom: () -> Unit) {
+private fun GameRulesScreen(state: AppUiState, onBack: () -> Unit, choosePack: (String) -> Unit, custom: () -> Unit, onContinue: () -> Unit) {
     val game = state.matchSettings.gameType
-    val decks = if (state.matchSettings.playlist.isNotEmpty()) state.decks else when (game) {
-        GameType.SOUND_EFFECTS -> state.decks.filter { it.title == "Sound Lab" }
-        GameType.BOMB_DEFUSAL -> state.decks.filter { it.title == "Five Second Frenzy" }
-        GameType.BLANK_AGENT, GameType.INSIDE_VOICE -> state.decks.filter { it.title == "Secret Words" }
-        GameType.CROWD_TRAP -> state.decks.filter { it.title == "Crowd Questions" }
-        GameType.SIGNAL_LINE -> state.decks.filter { it.title == "Signal Lines" }
-        GameType.TRUTH_OR_DARE -> state.decks.filter { it.title in setOf("Truth or Dare", "Truth or Dare After Dark") }
-        GameType.MOST_LIKELY -> state.decks.filter { it.title == "Most Likely" }
-        GameType.NEVER_HAVE_I_EVER -> state.decks.filter { it.title == "Never Have I Ever" }
-        GameType.FAKE_IT -> state.decks.filter { it.title == "Fake It Trivia" }
-        GameType.DRAW_AND_GUESS -> state.decks.filter { it.title == "Draw & Guess" }
-        GameType.WOULD_YOU_RATHER -> state.decks.filter { it.title == "Would You Rather" }
-        GameType.TWIN_WORD_SPY -> state.decks.filter { it.title == "Twin Words" }
-        GameType.IMPOSTOR_MIME, GameType.MIME_TELEPHONE -> state.decks.filter { it.title == "Wild Scenes" }
-        GameType.REVERSE_CHARADES -> state.decks.filter { it.title in setOf("Actions & Verbs", "Wild Scenes") }
-        else -> state.decks
-    }.ifEmpty { state.decks }
-    Page("PICK A CARD PACK", eyebrow = "${game.displayName()} · ${decks.size} PACKS") {
-        OutlinedButton(custom, Modifier.fillMaxWidth().height(54.dp), shape = PartyShape) { Text("MAKE YOUR OWN PACK") }
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(decks, key = { it.id }) { deck ->
-                val color = when (kotlin.math.abs(deck.id.hashCode()) % 4) { 0 -> Sky; 1 -> Tangerine; 2 -> Acid; else -> Pink }
-                Card(Modifier.fillMaxWidth().clickable { choose(deck.id) }, shape = PartyShape, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), border = BorderStroke(2.dp, color.copy(alpha = .7f))) {
-                    Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Box(Modifier.size(54.dp).background(color, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
-                            Text(deck.title.take(1).uppercase(), color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
-                        }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(deck.title, style = MaterialTheme.typography.titleLarge)
-                            Text(deck.description, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-                            if (deck.custom) Text("YOUR DECK", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Black)
-                        }
-                        Text("${deck.cardCount}\nCARDS", textAlign = TextAlign.Center, fontSize = 11.sp, fontWeight = FontWeight.Black, color = color)
+    val mix = state.matchSettings.playlist.isNotEmpty()
+    val packs = state.packChoices()
+    val chosen = packs.firstOrNull { it.id == state.matchSettings.deckIds.firstOrNull() } ?: packs.firstOrNull()
+    val colors = MaterialTheme.colorScheme
+    Page(if (mix) "Party mix" else game.displayName().friendlyTitle(), onBack = onBack) {
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+            item(key = "intro") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (!mix) GameCover(game, Modifier.fillMaxWidth().aspectRatio(1.8f).clip(RoundedCornerShape(24.dp)))
+                    Text(if (mix) "A different game every round, one shared scoreboard. Best once your group knows a few games." else game.guide().premise, style = MaterialTheme.typography.bodyLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val minimum = state.matchSettings.playlist.ifEmpty { listOf(game) }.maxOf { it.minimumPlayers() }
+                        InfoBadge("$minimum+ players")
+                        if (!mix) InfoBadge(game.difficultyLabel())
                     }
                 }
             }
+            if (mix) {
+                item(key = "mix-heading") { Text("Games in the mix", style = MaterialTheme.typography.titleLarge) }
+                items(state.matchSettings.playlist.distinct(), key = { it.name }) { mixGame ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        GameCover(mixGame, Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)))
+                        Column(Modifier.weight(1f)) {
+                            Text(mixGame.displayName().friendlyTitle(), fontWeight = FontWeight.ExtraBold)
+                            Text(mixGame.guide().premise, color = colors.onSurfaceVariant, fontSize = 13.sp, lineHeight = 17.sp)
+                        }
+                    }
+                }
+                item(key = "mix-note") { Text("Before every round the app shows which game is next, its quick rules and who holds the phone.", color = colors.onSurfaceVariant) }
+            } else {
+                item(key = "rules-heading") { Text("How to play", style = MaterialTheme.typography.titleLarge) }
+                items(game.rules().withIndex().toList(), key = { "rule-${it.index}" }) { item ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
+                        Surface(color = Acid, contentColor = Ink, shape = CircleShape, modifier = Modifier.size(32.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Text("${item.index + 1}", fontWeight = FontWeight.Black, fontSize = 16.sp) }
+                        }
+                        Text(item.value, Modifier.weight(1f).padding(top = 3.dp), style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                item(key = "example") {
+                    Surface(color = colors.surfaceVariant, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("For example", fontWeight = FontWeight.ExtraBold, color = colors.primary)
+                            Text(game.guide().example, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+            if (packs.size > 1) {
+                item(key = "packs-heading") {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Pick your cards", style = MaterialTheme.typography.titleLarge)
+                        Text("You can change this next time.", color = colors.onSurfaceVariant, fontSize = 13.sp)
+                    }
+                }
+                items(packs, key = { it.id }) { deck ->
+                    val active = deck.id == chosen?.id
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().semantics { selected = active }.clickable(role = Role.RadioButton) { choosePack(deck.id) },
+                        color = if (active) colors.secondary else colors.surface, contentColor = if (active) colors.onSecondary else colors.onSurface,
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(deck.title, fontWeight = FontWeight.ExtraBold)
+                                Text(if (deck.custom) "Your deck · ${deck.cardCount} cards" else deck.description, fontSize = 13.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                            if (active) Text("✓", fontSize = 20.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+                if (mix || game == GameType.CHARADES || game == GameType.REVERSE_CHARADES) item(key = "custom-deck") {
+                    TextButton(custom, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("+ Make your own deck") }
+                }
+            }
         }
+        PartyButton("Next: add players", { chosen?.let { choosePack(it.id); onContinue() } }, enabled = chosen != null)
     }
 }
 
 @Composable
-private fun SetupScreen(state: AppUiState, vm: AppViewModel, onReady: () -> Unit) {
-    val selectedGame = state.matchSettings.playlist.firstOrNull() ?: state.matchSettings.gameType
-    val roster = remember { mutableStateListOf<String>().also { list -> list.addAll(state.matchSettings.teams.flatMap { it.players }.distinct()) } }
-    var newPlayer by remember { mutableStateOf("") }
-    var teamMode by remember { mutableStateOf(selectedGame.prefersTeams()) }
-    val accent = selectedGame.gameColor()
-    Page("WHO'S PLAYING?") {
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item {
-                Surface(Modifier.fillMaxWidth(), color = accent, shape = PartyShape) {
-                    Row(Modifier.padding(18.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(if (state.matchSettings.playlist.isEmpty()) selectedGame.displayName() else "PARTY MIX", color = gameForeground(accent), fontWeight = FontWeight.Black, fontSize = 23.sp)
-                            Text("${roster.size} PLAYERS", color = gameForeground(accent), fontWeight = FontWeight.Bold)
-                        }
-                        GameGlyph(selectedGame, gameForeground(accent))
+private fun InfoBadge(text: String) {
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
+        Text(text, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SetupScreen(state: AppUiState, vm: AppViewModel, onBack: () -> Unit, onReady: () -> Unit) {
+    val mix = state.matchSettings.playlist.isNotEmpty()
+    val game = state.matchSettings.playlist.firstOrNull() ?: state.matchSettings.gameType
+    val roster = remember { mutableStateListOf<String>().also { it.addAll(state.matchSettings.teams.flatMap { team -> team.players }.distinct().filterNot { name -> name in listOf("Player 1", "Player 2") }) } }
+    var newPlayer by rememberSaveable { mutableStateOf("") }
+    var twoTeams by rememberSaveable { mutableStateOf(false) }
+    var assignments by rememberSaveable { mutableStateOf(mapOf<String, Int>()) }
+    var rename by rememberSaveable { mutableStateOf(false) }
+    var blueName by rememberSaveable { mutableStateOf("") }
+    var coralName by rememberSaveable { mutableStateOf("") }
+    var options by rememberSaveable { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    val minimum = state.matchSettings.playlist.ifEmpty { listOf(game) }.maxOf { it.minimumPlayers() }
+    val pending = newPlayer.trim()
+    val duplicate = pending.isNotBlank() && roster.any { it.equals(pending, true) }
+    val canAdd = pending.isNotBlank() && !duplicate && roster.size < 20
+    val readyCount = roster.size + if (canAdd) 1 else 0
+    val missing = (minimum - readyCount).coerceAtLeast(0)
+    val teamsAllowed = game.prefersTeams() && roster.size >= 2
+    val splitTeams = twoTeams && teamsAllowed
+    val groups = (0..1).map { group -> roster.filterIndexed { index, name -> (assignments[name] ?: index % 2) == group } }
+    val validTeams = !splitTeams || groups.all { it.isNotEmpty() }
+    fun addPlayer() {
+        if (canAdd) { roster.add(pending); newPlayer = ""; vm.setRoster(roster.toList(), false) }
+    }
+    fun removePlayer(player: String) { roster.remove(player); assignments = assignments - player; vm.setRoster(roster.toList(), false) }
+    Page("Who's playing?", onBack = onBack) {
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+            item(key = "selected-game") {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    GameCover(game, Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)))
+                    Column {
+                        Text(if (mix) "Party mix" else game.displayName().friendlyTitle(), fontWeight = FontWeight.Bold)
+                        Text("Needs at least $minimum players", color = colors.onSurfaceVariant, fontSize = 13.sp)
                     }
                 }
             }
-            item {
-                PartyPanel("ADD PLAYERS", Sky) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(newPlayer, { newPlayer = it.take(30) }, label = { Text("Player name") }, singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f))
-                        Button({ if (newPlayer.isNotBlank() && roster.none { it.equals(newPlayer.trim(), true) }) { roster.add(newPlayer.trim()); newPlayer = "" } }, modifier = Modifier.height(56.dp), enabled = newPlayer.isNotBlank()) { Text("ADD") }
+            item(key = "add-players") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(newPlayer, { newPlayer = it.take(30) }, label = { Text("Player name") }, singleLine = true,
+                            modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp), isError = duplicate,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { addPlayer() }))
+                        Button({ addPlayer() }, Modifier.heightIn(min = 56.dp).padding(top = 6.dp), enabled = canAdd, shape = RoundedCornerShape(14.dp)) { Text("Add") }
                     }
-                    roster.chunked(2).forEach { pair ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            pair.forEach { player ->
-                                Surface(
-                                    modifier = Modifier.weight(1f).clickable { roster.remove(player) },
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = RoundedCornerShape(12.dp),
-                                ) {
-                                    Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                        Text(player, Modifier.weight(1f), fontWeight = FontWeight.Bold, maxLines = 1)
-                                        Text("×", color = Pink, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    Text(when {
+                        duplicate -> "That name is already here. Try a different name."
+                        roster.size == 20 -> "Party full: 20 players."
+                        roster.isEmpty() -> "Type a name and tap Add. Add everyone in the room."
+                        else -> "${roster.size} ${if (roster.size == 1) "player" else "players"} added"
+                    }, color = if (duplicate) colors.error else colors.onSurfaceVariant, fontSize = 13.sp)
+                }
+            }
+            if (roster.isNotEmpty()) item(key = "roster") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    roster.forEach { player ->
+                        Surface(color = colors.surface, shape = CircleShape, border = BorderStroke(1.dp, colors.outline)) {
+                            Row(Modifier.padding(start = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(player, fontWeight = FontWeight.Bold)
+                                IconButton({ removePlayer(player) }, Modifier.size(44.dp).semantics { contentDescription = "Remove $player" }) {
+                                    Text("✕", color = colors.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (teamsAllowed) item(key = "play-format") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Play together or in teams?", style = MaterialTheme.typography.titleMedium)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ChoicePill("Together", !twoTeams, Modifier.weight(1f)) { twoTeams = false }
+                        ChoicePill("Two teams", twoTeams, Modifier.weight(1f)) { twoTeams = true }
+                    }
+                    Text(if (twoTeams) "We split everyone evenly. Tap Move to swap someone." else "Everyone plays as one group and shares the score.", color = colors.onSurfaceVariant, fontSize = 13.sp)
+                }
+            }
+            if (splitTeams) {
+                item(key = "team-actions") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton({ assignments = roster.shuffled().withIndex().associate { it.value to it.index % 2 } }) { Text("Shuffle teams") }
+                            TextButton({ rename = !rename }) { Text(if (rename) "Done naming" else "Rename teams") }
+                        }
+                        if (rename) {
+                            OutlinedTextField(blueName, { blueName = it.take(30) }, label = { Text("First team name") }, placeholder = { Text("Team Blue") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(coralName, { coralName = it.take(30) }, label = { Text("Second team name") }, placeholder = { Text("Team Coral") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+                (0..1).forEach { group ->
+                    item(key = "team-$group") {
+                        Surface(color = colors.surface, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                Text((if (group == 0) blueName else coralName).ifBlank { if (group == 0) "Team Blue" else "Team Coral" }, style = MaterialTheme.typography.titleLarge, color = if (group == 0) Sky else colors.primary)
+                                if (groups[group].isEmpty()) Text("Move at least one player here.", color = colors.error)
+                                groups[group].forEach { player ->
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        Text(player, Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                                        TextButton({ assignments = roster.withIndex().associate { it.value to (assignments[it.value] ?: it.index % 2) }.toMutableMap().apply { put(player, 1 - group) } }, Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Move $player to the other team" }) { Text("Move") }
                                     }
                                 }
                             }
-                            if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
-                    if (roster.isNotEmpty()) Text("Tap a name to remove it", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
             }
-            item {
-                PartyPanel("GAME OPTIONS", Acid) {
-                    if (selectedGame.prefersTeams()) {
-                        MiniLabel("PLAY FORMAT")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PartyChip("ONE GROUP", !teamMode) { teamMode = false }
-                            PartyChip("2 AUTO TEAMS", teamMode) { teamMode = true }
+            item(key = "options-toggle") {
+                Surface(onClick = { options = !options }, color = colors.surfaceVariant, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Game settings", fontWeight = FontWeight.ExtraBold)
+                            Text(listOfNotNull(
+                                if (game.isTimed() && game != GameType.BOMB_DEFUSAL) "${state.matchSettings.timerSeconds}s turns" else null,
+                                state.matchSettings.totalRounds?.let { "$it rounds" } ?: "Play until you stop",
+                                if (game in setOf(GameType.CHARADES, GameType.SOUND_EFFECTS)) (if (state.matchSettings.mode == GameMode.FOREHEAD_TILT) "forehead tilt" else "tap buttons") else null,
+                            ).joinToString(" · "), color = colors.onSurfaceVariant, fontSize = 13.sp)
                         }
-                        if (teamMode && roster.size >= 2) Text("Blue Crew ${(roster.size + 1) / 2}  ·  Pink Crew ${roster.size / 2}", fontWeight = FontWeight.Bold)
+                        Text(if (options) "Hide" else "Change", color = colors.primary, fontWeight = FontWeight.ExtraBold)
                     }
-                    if (selectedGame in setOf(GameType.CHARADES, GameType.SOUND_EFFECTS)) {
-                        MiniLabel("CONTROLS")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PartyChip("FOREHEAD", state.matchSettings.mode == GameMode.FOREHEAD_TILT) { vm.chooseMode(GameMode.FOREHEAD_TILT) }
-                            PartyChip("TOUCH", state.matchSettings.mode == GameMode.CLASSIC_TOUCH) { vm.chooseMode(GameMode.CLASSIC_TOUCH) }
+                }
+            }
+            if (options) item(key = "options") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (game in setOf(GameType.CHARADES, GameType.SOUND_EFFECTS)) {
+                        MiniLabel("HOW TO MARK ANSWERS")
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PartyChip("Tap buttons", state.matchSettings.mode == GameMode.CLASSIC_TOUCH) { vm.chooseMode(GameMode.CLASSIC_TOUCH) }
+                            PartyChip("Phone on forehead", state.matchSettings.mode == GameMode.FOREHEAD_TILT) { vm.chooseMode(GameMode.FOREHEAD_TILT) }
                         }
                     }
-                    if (selectedGame in setOf(GameType.CHARADES, GameType.REVERSE_CHARADES, GameType.SOUND_EFFECTS)) {
-                        MiniLabel("SECONDS")
+                    if (game.isTimed() && game != GameType.BOMB_DEFUSAL) {
+                        MiniLabel("TIME PER TURN")
                         ChipRow(listOf(30, 60, 90, 120), state.matchSettings.timerSeconds, vm::setTimer)
                     }
                     MiniLabel("ROUNDS")
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        listOf(3, 5, 10).forEach { value -> PartyChip("$value", state.matchSettings.totalRounds == value) { vm.setRounds(value) } }
-                        PartyChip("∞", state.matchSettings.totalRounds == null) { vm.setRounds(null) }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(3, 5, 10).forEach { n -> PartyChip("$n", state.matchSettings.totalRounds == n) { vm.setRounds(n) } }
+                        PartyChip("Until we stop", state.matchSettings.totalRounds == null) { vm.setRounds(null) }
                     }
-                    if (selectedGame in setOf(GameType.CHARADES, GameType.REVERSE_CHARADES, GameType.SOUND_EFFECTS)) {
-                        MiniLabel("SKIPS")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (game.isTimed() && game != GameType.BOMB_DEFUSAL) {
+                        MiniLabel("SKIPS PER TURN")
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             PartyChip("3", state.matchSettings.skipLimit == 3) { vm.setSkipLimit(3) }
-                            PartyChip("UNLIMITED", state.matchSettings.skipLimit == null) { vm.setSkipLimit(null) }
+                            PartyChip("Unlimited", state.matchSettings.skipLimit == null) { vm.setSkipLimit(null) }
                         }
                     }
                 }
             }
         }
-        PartyButton("READY TO PLAY", onClick = {
-            val finalRoster = (roster + newPlayer.trim()).filter { it.isNotBlank() }.distinctBy { it.lowercase() }
-            vm.setRoster(finalRoster, teamMode && selectedGame.prefersTeams())
+        PartyButton(if (missing > 0) "Add $missing more ${if (missing == 1) "player" else "players"}" else "Start game", {
+            addPlayer()
+            vm.setTeams(partyTeams(roster.toList(), splitTeams, assignments, listOf(blueName, coralName)))
             onReady()
-        }, enabled = roster.size + (if (newPlayer.isBlank()) 0 else 1) >= selectedGame.minimumPlayers())
+        }, enabled = missing == 0 && readyCount <= 20 && !duplicate && validTeams)
     }
 }
 
+@Composable
+private fun ChoicePill(label: String, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier = modifier.heightIn(min = 48.dp).semantics { selected = active }.clickable(role = Role.RadioButton, onClick = onClick),
+        color = if (active) colors.secondary else colors.surface, contentColor = if (active) colors.onSecondary else colors.onSurface,
+        border = if (active) null else BorderStroke(1.dp, colors.outline), shape = RoundedCornerShape(14.dp),
+    ) {
+        Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) { Text(label, fontWeight = FontWeight.ExtraBold) }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable private fun ChipRow(values: List<Int>, selected: Int, set: (Int) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { values.forEach { value -> PartyChip("${value}s", selected == value) { set(value) } } }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) { values.forEach { value -> PartyChip("${value}s", selected == value) { set(value) } } }
 }
 
 @Composable
 private fun ReadyScreen(state: AppUiState, onStart: () -> Unit, onQuit: () -> Unit) {
     val session = state.session
-    val team = session?.settings?.teams?.getOrNull(session.activeTeamIndex)
+    val teams = session?.settings?.teams.orEmpty()
+    val team = teams.getOrNull(session?.activeTeamIndex ?: 0)
     val turns = session?.rounds?.count { it.activeTeamId == team?.id } ?: 0
-    val actor = team?.players?.getOrNull(turns % (team.players.size.coerceAtLeast(1))) ?: "Player"
+    val turnActor = team?.players?.getOrNull(turns % (team.players.size.coerceAtLeast(1))) ?: "Player"
     val game = session?.activeGameType ?: GameType.CHARADES
+    val privateHandoff = game in setOf(GameType.IMPOSTOR_MIME, GameType.BLANK_AGENT, GameType.INSIDE_VOICE, GameType.CROWD_TRAP, GameType.SIGNAL_LINE, GameType.TWIN_WORD_SPY, GameType.MOST_LIKELY, GameType.WOULD_YOU_RATHER, GameType.FAKE_IT)
+    val actor = if (privateHandoff) teams.flatMap { it.players }.firstOrNull() ?: turnActor else turnActor
+    val mix = session?.settings?.playlist?.isNotEmpty() == true
+    val total = session?.settings?.totalRounds
     var countdown by remember { mutableStateOf<Int?>(null) }
     var counting by remember { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
     LaunchedEffect(counting) {
         if (counting) {
             for (value in 3 downTo 1) { countdown = value; delay(700) }
@@ -656,17 +1063,32 @@ private fun ReadyScreen(state: AppUiState, onStart: () -> Unit, onQuit: () -> Un
             onStart()
         }
     }
-    Page(game.displayName(), eyebrow = "ROUND ${(session?.currentRound ?: 0) + 1}") {
-        Spacer(Modifier.weight(1f))
-        Surface(shape = CircleShape, color = Acid, modifier = Modifier.size(170.dp)) {
-            Box(contentAlignment = Alignment.Center) { Text(countdown?.toString() ?: "PASS", fontSize = if (countdown == null) 34.sp else 84.sp, fontWeight = FontWeight.Black, color = Ink) }
+    Page(game.displayName().friendlyTitle(), eyebrow = "Round ${(session?.currentRound ?: 0) + 1}${total?.let { " of $it" } ?: ""}${if (mix) " · Party mix" else ""}") {
+        if (teams.size > 1) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            teams.forEach { candidate ->
+                val active = candidate.id == team?.id
+                Surface(Modifier.weight(1f), color = if (active) colors.secondary else colors.surface, contentColor = if (active) colors.onSecondary else colors.onSurface, shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        Text(candidate.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${candidate.score} pts", fontWeight = FontWeight.Black, fontSize = 18.sp)
+                    }
+                }
+            }
         }
-        Text("${team?.name ?: "Team"}'s turn", color = MaterialTheme.colorScheme.secondary, fontSize = 18.sp, fontWeight = FontWeight.Black)
-        Text(actor, style = MaterialTheme.typography.displayLarge, textAlign = TextAlign.Center)
-        Text(game.readyInstruction(), color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         Spacer(Modifier.weight(1f))
-        PartyButton("START  3 · 2 · 1", { countdown = 3; counting = true }, enabled = !counting)
-        TextButton(onQuit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        if (countdown != null) {
+            Surface(shape = CircleShape, color = Acid, modifier = Modifier.size(170.dp)) {
+                Box(contentAlignment = Alignment.Center) { Text("$countdown", fontSize = 84.sp, fontWeight = FontWeight.Black, color = Ink) }
+            }
+        } else GameCover(game, Modifier.size(150.dp).clip(RoundedCornerShape(32.dp)))
+        Text(if (privateHandoff || teams.size <= 1) "Hand the phone to" else "${team?.name}'s turn · hand the phone to", color = colors.secondary, fontSize = 17.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+        Text(actor, style = MaterialTheme.typography.displayLarge, textAlign = TextAlign.Center)
+        Text(game.readyInstruction(session?.settings?.mode ?: GameMode.CLASSIC_TOUCH), color = colors.onSurfaceVariant, textAlign = TextAlign.Center)
+        Spacer(Modifier.weight(1f))
+        PartyButton(if (game.isTimed() && game != GameType.REVERSE_CHARADES) "Start the timer" else "Start", {
+            if (game.isTimed() && game != GameType.REVERSE_CHARADES) { countdown = 3; counting = true } else onStart()
+        }, enabled = !counting)
+        TextButton(onQuit, Modifier.fillMaxWidth()) { Text("Back to home (game is saved)") }
     }
 }
 
@@ -694,7 +1116,7 @@ private fun GameScreen(state: AppUiState, vm: AppViewModel, finish: () -> Unit, 
 private fun TimedGameScreen(state: AppUiState, vm: AppViewModel, finish: () -> Unit, quit: () -> Unit) {
     val runtime = state.runtime ?: return Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     val game = runtime.session.activeGameType
-    val reversePrep = game == GameType.REVERSE_CHARADES && runtime.paused && runtime.results.isEmpty()
+    val reversePrep = game == GameType.REVERSE_CHARADES && runtime.paused
     val context = LocalContext.current
     val activity = context as Activity
     val tilt = remember { TiltController(context.applicationContext) }
@@ -702,11 +1124,12 @@ private fun TimedGameScreen(state: AppUiState, vm: AppViewModel, finish: () -> U
     val vibrator = remember { context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator }
     fun respond(status: PromptStatus) {
         vm.answer(status)
+        if (game == GameType.REVERSE_CHARADES && !runtime.paused) vm.pause()
         if (status == PromptStatus.GUESSED) {
-            tone.startTone(if (state.settings.soundPack == "ARCADE") ToneGenerator.TONE_DTMF_9 else ToneGenerator.TONE_PROP_ACK, 120)
+            tone.startTone(if (state.settings.soundPack == "Arcade") ToneGenerator.TONE_DTMF_9 else ToneGenerator.TONE_PROP_ACK, 120)
             vibrator.vibrate(VibrationEffect.createOneShot(70, 180))
         } else {
-            tone.startTone(if (state.settings.soundPack == "ARCADE") ToneGenerator.TONE_DTMF_1 else ToneGenerator.TONE_PROP_NACK, 160)
+            tone.startTone(if (state.settings.soundPack == "Arcade") ToneGenerator.TONE_DTMF_1 else ToneGenerator.TONE_PROP_NACK, 160)
             vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 70, 60, 70), -1))
         }
     }
@@ -725,7 +1148,7 @@ private fun TimedGameScreen(state: AppUiState, vm: AppViewModel, finish: () -> U
         }
     }
     val urgent = runtime.remainingSeconds <= 10
-    Box(Modifier.fillMaxSize().background(if (urgent) Color(0xFF28151B) else MaterialTheme.colorScheme.background)) {
+    Box(Modifier.fillMaxSize().background(if (urgent && state.settings.theme != "High_contrast") Color(0xFFFFE8EF) else MaterialTheme.colorScheme.background)) {
         Canvas(Modifier.fillMaxSize()) {
             drawCircle(if (urgent) Pink.copy(alpha = .18f) else Sky.copy(alpha = .10f), size.minDimension * .42f, Offset(size.width * .84f, size.height * .18f))
         }
@@ -736,28 +1159,28 @@ private fun TimedGameScreen(state: AppUiState, vm: AppViewModel, finish: () -> U
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = if (urgent) Pink else MaterialTheme.colorScheme.surface, shape = CircleShape) {
+                Surface(color = if (urgent) Pink else MaterialTheme.colorScheme.surface, contentColor = if (urgent) Ink else MaterialTheme.colorScheme.onSurface, shape = CircleShape) {
                     Text("${runtime.remainingSeconds}s", Modifier.padding(horizontal = 18.dp, vertical = 10.dp), fontSize = 22.sp, fontWeight = FontWeight.Black)
                 }
-                Text("${runtime.score} POINTS", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Green)
-                TextButton(onClick = vm::pause) { Text(if (runtime.paused) "RESUME" else "PAUSE", fontWeight = FontWeight.Black) }
+                Text("Score: ${runtime.score}", fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                TextButton(onClick = vm::pause) { Text(if (runtime.paused) "Resume" else "Pause", fontWeight = FontWeight.Black) }
             }
             Box(Modifier.weight(1f).fillMaxWidth().border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(32.dp)).padding(20.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (game == GameType.BOMB_DEFUSAL) Text("BOOM", fontSize = 44.sp, fontWeight = FontWeight.Black, color = Pink)
-                    Text(if (game == GameType.REVERSE_CHARADES && !reversePrep) "EVERYONE ACT!" else runtime.currentPrompt?.text ?: "All done!", fontSize = 48.sp, lineHeight = 50.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
-                    runtime.currentPrompt?.hint?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center) }
+                    if (game == GameType.BOMB_DEFUSAL) Text("Boom", fontSize = 44.sp, fontWeight = FontWeight.Black, color = Pink)
+                    Text(if (game == GameType.REVERSE_CHARADES && !reversePrep) "Everyone act!" else runtime.currentPrompt?.text ?: "All done!", fontSize = 48.sp, lineHeight = 50.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+                    if (game != GameType.REVERSE_CHARADES || reversePrep) runtime.currentPrompt?.hint?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center) }
                     if (reversePrep) {
                         Text("Show this card to every actor. The guesser must look away.", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                        Button(vm::pause, colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = Ink)) { Text("HAND TO THE GUESSER") }
-                    } else if (runtime.paused) Surface(color = Acid, shape = CircleShape) { Text("PAUSED", Modifier.padding(horizontal = 18.dp, vertical = 8.dp), color = Ink, fontWeight = FontWeight.Black) }
+                        Button(vm::pause, colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = Ink)) { Text("Hand to the guesser") }
+                    } else if (runtime.paused) Surface(color = Acid, shape = CircleShape) { Text("Paused", Modifier.padding(horizontal = 18.dp, vertical = 8.dp), color = Ink, fontWeight = FontWeight.Black) }
                 }
             }
             if (!reversePrep) {
-                if (runtime.session.settings.penaltyEnabled) TextButton({ respond(PromptStatus.PENALTY) }, Modifier.align(Alignment.CenterHorizontally)) { Text("−1 RULE BREAK") }
+                if (runtime.session.settings.penaltyEnabled) TextButton({ respond(PromptStatus.PENALTY) }, Modifier.align(Alignment.CenterHorizontally)) { Text("−1 Rule break") }
                 Row(Modifier.fillMaxWidth().height(94.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button({ respond(PromptStatus.SKIPPED) }, Modifier.weight(1f).fillMaxHeight(), colors = ButtonDefaults.buttonColors(containerColor = Tangerine, contentColor = Ink), shape = PartyShape, enabled = !runtime.paused) { Text(if (game == GameType.BOMB_DEFUSAL) "CAN'T NAME 3" else "SKIP  ↑", fontSize = 19.sp, fontWeight = FontWeight.Black) }
-                    Button({ respond(PromptStatus.GUESSED) }, Modifier.weight(1f).fillMaxHeight(), colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Ink), shape = PartyShape, enabled = !runtime.paused) { Text(if (game == GameType.BOMB_DEFUSAL) "PASS BOMB  →" else "GOT IT  ↓", fontSize = 19.sp, fontWeight = FontWeight.Black) }
+                    Button({ respond(PromptStatus.SKIPPED) }, Modifier.weight(1f).fillMaxHeight(), colors = ButtonDefaults.buttonColors(containerColor = Tangerine, contentColor = Ink), shape = PartyShape, enabled = !runtime.paused) { Text(if (game == GameType.BOMB_DEFUSAL) "Can't name 3" else "Skip  ↑", fontSize = 19.sp, fontWeight = FontWeight.Black) }
+                    Button({ respond(PromptStatus.GUESSED) }, Modifier.weight(1f).fillMaxHeight(), colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Ink), shape = PartyShape, enabled = !runtime.paused) { Text(if (game == GameType.BOMB_DEFUSAL) "Pass bomb  →" else "Got it  ↓", fontSize = 19.sp, fontWeight = FontWeight.Black) }
                 }
             }
         }
@@ -765,7 +1188,7 @@ private fun TimedGameScreen(state: AppUiState, vm: AppViewModel, finish: () -> U
     if (runtime.paused && !reversePrep) AlertDialog(
         onDismissRequest = vm::pause,
         title = { Text("Round paused") },
-        text = { Column { TextButton(vm::pause) { Text("RESUME") }; TextButton({ vm.startRound() }) { Text("RESTART ROUND") }; TextButton(quit) { Text("QUIT TO HOME") } } },
+        text = { Column { TextButton(vm::pause) { Text("Resume") }; TextButton({ vm.startRound() }) { Text("Restart round") }; TextButton(quit) { Text("Quit to home") } } },
         confirmButton = {},
     )
 }
@@ -773,7 +1196,7 @@ private fun TimedGameScreen(state: AppUiState, vm: AppViewModel, finish: () -> U
 @Composable
 private fun ImpostorGameScreen(state: AppUiState, complete: (Boolean) -> Unit, quit: () -> Unit) {
     val runtime = state.runtime ?: return Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-    val players = runtime.session.settings.teams.flatMap { it.players }.take(10)
+    val players = runtime.session.settings.teams.flatMap { it.players }.take(20)
     val impostorIndex = remember(runtime.session.id, runtime.session.currentRound) { kotlin.random.Random.nextInt(players.size.coerceAtLeast(1)) }
     var playerIndex by remember { mutableStateOf(0) }
     var revealed by remember { mutableStateOf(false) }
@@ -786,33 +1209,33 @@ private fun ImpostorGameScreen(state: AppUiState, complete: (Boolean) -> Unit, q
             phase = 2
         }
     }
-    Page("IMPOSTOR MIME", eyebrow = when (phase) { 0 -> "SECRET CARDS"; 1 -> "EVERYONE MIME"; 2 -> "CAST YOUR VOTE"; else -> "THE REVEAL" }) {
+    Page("Impostor Mime", eyebrow = when (phase) { 0 -> "Secret cards"; 1 -> "Everyone mime"; 2 -> "Cast your vote"; else -> "The reveal" }) {
         when (phase) {
             0 -> {
                 Spacer(Modifier.weight(1f))
-                Text("Pass to", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Pass the phone to", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(players.getOrElse(playerIndex) { "Player" }, style = MaterialTheme.typography.displayLarge, textAlign = TextAlign.Center)
                 Card(Modifier.fillMaxWidth().clickable { revealed = true }, shape = PartyShape, colors = CardDefaults.cardColors(containerColor = if (revealed && playerIndex == impostorIndex) Pink else Acid)) {
                     Box(Modifier.fillMaxWidth().height(190.dp).padding(20.dp), contentAlignment = Alignment.Center) {
                         Text(
-                            if (!revealed) "TAP TO REVEAL" else if (playerIndex == impostorIndex) "YOU ARE THE\nIMPOSTOR" else runtime.currentPrompt?.text.orEmpty(),
+                            if (!revealed) "Tap to reveal" else if (playerIndex == impostorIndex) "YOU ARE THE\nIMPOSTOR" else runtime.currentPrompt?.text.orEmpty(),
                             color = Ink, fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                         )
                     }
                 }
                 Text(if (revealed) "Memorize it, then hide the screen." else "Keep this away from everyone else.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
-                PartyButton(if (playerIndex == players.lastIndex) "START THE MIME" else "HIDE & PASS", {
+                PartyButton(if (playerIndex == players.lastIndex) "Start the mime" else "Hide & pass", {
                     if (!revealed) return@PartyButton
                     if (playerIndex == players.lastIndex) phase = 1 else { playerIndex++; revealed = false }
                 }, enabled = revealed)
             }
             1 -> {
                 Spacer(Modifier.weight(1f))
-                Text("$seconds", fontSize = 108.sp, lineHeight = 112.sp, fontWeight = FontWeight.Black, color = if (seconds <= 10) Pink else Acid)
+                Text("$seconds", fontSize = 108.sp, lineHeight = 112.sp, fontWeight = FontWeight.Black, color = if (seconds <= 10) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
                 Text("Everyone mimes at the same time. The impostor watches and blends in.", textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
                 Spacer(Modifier.weight(1f))
-                OutlinedButton({ phase = 2 }, Modifier.fillMaxWidth()) { Text("VOTE NOW") }
+                OutlinedButton({ phase = 2 }, Modifier.fillMaxWidth()) { Text("Vote now") }
             }
             2 -> {
                 Text("Who looked like they were guessing?", style = MaterialTheme.typography.headlineMedium)
@@ -823,19 +1246,19 @@ private fun ImpostorGameScreen(state: AppUiState, complete: (Boolean) -> Unit, q
                         }
                     }
                 }
-                PartyButton("LOCK THE VOTE", { phase = 3 }, enabled = votedIndex != null)
+                PartyButton("Lock the vote", { phase = 3 }, enabled = votedIndex != null)
             }
             else -> {
                 val caught = votedIndex == impostorIndex
                 Spacer(Modifier.weight(1f))
-                Text(if (caught) "CAUGHT!" else "ESCAPED!", style = MaterialTheme.typography.displayLarge, color = if (caught) Green else Pink)
+                Text(if (caught) "Caught!" else "Escaped!", style = MaterialTheme.typography.displayLarge, color = if (caught) Green else Pink)
                 Text("${players.getOrElse(impostorIndex) { "The impostor" }} was the impostor.", fontSize = 22.sp, textAlign = TextAlign.Center)
                 Text(if (caught) "The crew earns the point." else "The impostor fooled the room.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
-                PartyButton("SEE ROUND RESULT", { complete(caught) })
+                PartyButton("See round result", { complete(caught) })
             }
         }
-        if (phase != 3) TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        if (phase != 3) TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -845,7 +1268,7 @@ private fun BlankAgentGameScreen(state: AppUiState, complete: (Boolean) -> Unit,
     val players = runtime.session.settings.teams.flatMap { it.players }.take(12)
     val whiteIndex = remember(runtime.session.id, runtime.session.currentRound) { kotlin.random.Random.nextInt(players.size.coerceAtLeast(1)) }
     val clueOrder = remember(runtime.session.id, runtime.session.currentRound) { players.indices.shuffled() }
-    val clueConstraint = remember(runtime.session.id, runtime.session.currentRound) { listOf("ONE WORD ONLY", "NO LETTER E", "PERSONAL MEMORY", "SOUND EFFECT ONLY", "GESTURE ONLY").random() }
+    val clueConstraint = remember(runtime.session.id, runtime.session.currentRound) { listOf("One word only", "No letter e", "Personal memory", "Sound effect only", "Gesture only").random() }
     var phase by remember { mutableStateOf(0) }
     var playerIndex by remember { mutableStateOf(0) }
     var revealed by remember { mutableStateOf(false) }
@@ -854,34 +1277,34 @@ private fun BlankAgentGameScreen(state: AppUiState, complete: (Boolean) -> Unit,
     var finalGuess by remember { mutableStateOf("") }
     var crewWon by remember { mutableStateOf(false) }
     val secret = runtime.currentPrompt?.text.orEmpty()
-    Page("BLANK AGENT", eyebrow = when (phase) { 0 -> "SECRET WORDS"; 1 -> "ONE CLUE EACH"; 2 -> "FIND THE AGENT"; 3 -> "LAST CHANCE"; else -> "THE REVEAL" }) {
+    Page("Blank Agent", eyebrow = when (phase) { 0 -> "Secret words"; 1 -> "One clue each"; 2 -> "Find the agent"; 3 -> "Last chance"; else -> "The reveal" }) {
         when (phase) {
             0 -> {
                 Spacer(Modifier.weight(1f))
-                Text("Pass to", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Pass the phone to", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(players.getOrElse(playerIndex) { "Player" }, style = MaterialTheme.typography.displayLarge, textAlign = TextAlign.Center)
-                Card(Modifier.fillMaxWidth().clickable { revealed = true }, shape = PartyShape, colors = CardDefaults.cardColors(containerColor = if (revealed && playerIndex == whiteIndex) Color.White else Sky)) {
+                Card(Modifier.fillMaxWidth().clickable { revealed = true }, shape = PartyShape, colors = CardDefaults.cardColors(containerColor = Acid)) {
                     Box(Modifier.fillMaxWidth().height(190.dp).padding(20.dp), contentAlignment = Alignment.Center) {
                         Text(
-                            if (!revealed) "TAP TO REVEAL" else if (playerIndex == whiteIndex) "YOU ARE THE\nBLANK AGENT\n\nListen carefully." else "THE WORD IS\n$secret",
+                            if (!revealed) "Tap to reveal" else if (playerIndex == whiteIndex) "YOU ARE THE\nBLANK AGENT\n\nListen carefully." else "THE WORD IS\n$secret",
                             color = Ink, fontSize = 29.sp, lineHeight = 33.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                         )
                     }
                 }
                 Text("Do not react. Remember your role, hide it, and pass.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
-                PartyButton(if (playerIndex == players.lastIndex) "START CLUES" else "HIDE & PASS", {
+                PartyButton(if (playerIndex == players.lastIndex) "Start clues" else "Hide & pass", {
                     if (playerIndex == players.lastIndex) phase = 1 else { playerIndex++; revealed = false }
                 }, enabled = revealed)
             }
             1 -> {
                 Spacer(Modifier.weight(1f))
-                Text("CLUE ${clueTurn + 1} OF ${players.size}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
+                Text("Clue ${clueTurn + 1} of ${players.size}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
                 Surface(color = Tangerine, shape = CircleShape) { Text(clueConstraint, Modifier.padding(horizontal = 16.dp, vertical = 8.dp), color = Ink, fontWeight = FontWeight.Black) }
                 Text(players.getOrElse(clueOrder.getOrElse(clueTurn) { 0 }) { "Player" }, style = MaterialTheme.typography.displayLarge, textAlign = TextAlign.Center)
                 Text("Say one hint about the word. Be useful—but not so obvious that the Blank Agent learns it.", style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
                 Spacer(Modifier.weight(1f))
-                PartyButton(if (clueTurn == players.lastIndex) "ALL CLUES DONE · VOTE" else "CLUE GIVEN · NEXT", {
+                PartyButton(if (clueTurn == players.lastIndex) "All clues done · Vote" else "Clue given · Next", {
                     if (clueTurn == players.lastIndex) phase = 2 else clueTurn++
                 })
             }
@@ -894,16 +1317,16 @@ private fun BlankAgentGameScreen(state: AppUiState, complete: (Boolean) -> Unit,
                         }
                     }
                 }
-                PartyButton("LOCK THE VOTE", {
+                PartyButton("Lock the vote", {
                     if (votedIndex == whiteIndex) phase = 3 else { crewWon = false; phase = 4 }
                 }, enabled = votedIndex != null)
             }
             3 -> {
-                Text("BLANK AGENT CAUGHT", style = MaterialTheme.typography.headlineMedium, color = Pink)
+                Text("Blank agent caught", style = MaterialTheme.typography.headlineMedium, color = Pink)
                 Text("${players.getOrElse(whiteIndex) { "Blank Agent" }}, guess the secret word to steal the win.", style = MaterialTheme.typography.bodyLarge)
                 OutlinedTextField(finalGuess, { finalGuess = it.take(60) }, label = { Text("Secret word") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.weight(1f))
-                PartyButton("FINAL ANSWER", {
+                PartyButton("Final answer", {
                     crewWon = !finalGuess.trim().equals(secret.trim(), ignoreCase = true)
                     phase = 4
                 }, enabled = finalGuess.isNotBlank())
@@ -911,15 +1334,15 @@ private fun BlankAgentGameScreen(state: AppUiState, complete: (Boolean) -> Unit,
             else -> {
                 val escaped = votedIndex != whiteIndex
                 Spacer(Modifier.weight(1f))
-                Text(if (crewWon) "CREW WINS" else "AGENT WINS", style = MaterialTheme.typography.displayLarge, color = if (crewWon) Green else Pink, textAlign = TextAlign.Center)
+                Text(if (crewWon) "Crew wins" else "Agent wins", style = MaterialTheme.typography.displayLarge, color = if (crewWon) Green else Pink, textAlign = TextAlign.Center)
                 Text("${players.getOrElse(whiteIndex) { "The agent" }} was the Blank Agent.", fontSize = 21.sp, textAlign = TextAlign.Center)
                 Text("The secret word was $secret.", fontSize = 24.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
                 if (!crewWon) Text(if (escaped) "The vote missed." else "The final guess was correct.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
-                PartyButton("SEE ROUND RESULT", { complete(crewWon) })
+                PartyButton("See round result", { complete(crewWon) })
             }
         }
-        if (phase < 4) TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        if (phase < 4) TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -937,34 +1360,46 @@ private fun InsideVoiceGameScreen(state: AppUiState, complete: (Boolean) -> Unit
     var seconds by remember { mutableStateOf(90) }
     var solved by remember { mutableStateOf(false) }
     var votedIndex by remember { mutableStateOf<Int?>(null) }
+    var showHostWord by remember { mutableStateOf(false) }
+    if (phase == 1 && showHostWord) {
+        AlertDialog(
+            onDismissRequest = { showHostWord = false },
+            title = { Text("HOST ONLY · ${players[host]}") },
+            text = { Text(secret, style = MaterialTheme.typography.headlineLarge) },
+            confirmButton = { TextButton({ showHostWord = false }) { Text("Hide word") } },
+        )
+    }
     LaunchedEffect(phase) {
         if (phase == 1) {
             while (seconds > 0 && !solved) { delay(1_000); seconds-- }
             phase = 2
         }
     }
-    Page("INSIDE VOICE", eyebrow = when (phase) { 0 -> "PRIVATE ROLES"; 1 -> "YES / NO SEARCH"; 2 -> "FIND THE DISTORTER"; else -> "THE REVEAL" }) {
+    Page("Inside Voice", eyebrow = when (phase) { 0 -> "Private roles"; 1 -> "Yes / no search"; 2 -> "Find the distorter"; else -> "The reveal" }) {
         when (phase) {
             0 -> {
-                Spacer(Modifier.weight(1f)); Text("Pass to", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.weight(1f)); Text("Pass the phone to", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(players[playerIndex], style = MaterialTheme.typography.displayLarge, textAlign = TextAlign.Center)
-                Card(Modifier.fillMaxWidth().clickable { revealed = true }, shape = PartyShape, colors = CardDefaults.cardColors(containerColor = when (playerIndex) { host -> Sky; navigator -> Green; distorter -> Pink; else -> Acid })) {
+                Card(Modifier.fillMaxWidth().clickable { revealed = true }, shape = PartyShape, colors = CardDefaults.cardColors(containerColor = Acid)) {
                     Box(Modifier.fillMaxWidth().height(210.dp).padding(20.dp), contentAlignment = Alignment.Center) {
                         val role = when (playerIndex) { host -> "HOST\nAnswer yes or no.\nWORD: $secret"; navigator -> "NAVIGATOR\nQuietly guide the group.\nWORD: $secret"; distorter -> "DISTORTER\nSecretly steer them away.\nWORD: $secret"; else -> "SEEKER\nAsk sharp yes/no questions." }
-                        Text(if (revealed) role else "TAP TO REVEAL", color = Ink, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+                        Text(if (revealed) role else "Tap to reveal", color = Ink, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
                     }
                 }
-                Spacer(Modifier.weight(1f)); PartyButton(if (playerIndex == players.lastIndex) "BEGIN SEARCH" else "HIDE & PASS", {
+                Spacer(Modifier.weight(1f)); PartyButton(if (playerIndex == players.lastIndex) "Begin search" else "Hide & pass", {
                     if (playerIndex == players.lastIndex) phase = 1 else { playerIndex++; revealed = false }
                 }, enabled = revealed)
             }
             1 -> {
                 Text("${players[host]} is the Host", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
-                Text("$seconds", fontSize = 92.sp, lineHeight = 96.sp, fontWeight = FontWeight.Black, color = if (seconds <= 15) Pink else Acid)
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Sky), shape = PartyShape) { Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("HOST'S WORD", color = Ink.copy(alpha = .65f), fontWeight = FontWeight.Black); Text(secret, color = Ink, fontSize = 34.sp, fontWeight = FontWeight.Black) } }
+                Text("$seconds", fontSize = 92.sp, lineHeight = 96.sp, fontWeight = FontWeight.Black, color = if (seconds <= 15) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
+                PartyPanel("Word hidden", Sky) {
+                    Text("Keep guessing. Only the Host can check the word privately.")
+                    OutlinedButton({ showHostWord = true }, Modifier.fillMaxWidth()) { Text("Host: check word privately") }
+                }
                 Text("Everyone asks yes/no questions. The Navigator helps subtly; the Distorter misleads.", textAlign = TextAlign.Center)
-                Spacer(Modifier.weight(1f)); PartyButton("THE GROUP SOLVED IT", { solved = true; phase = 2 })
-                OutlinedButton({ solved = false; phase = 2 }, Modifier.fillMaxWidth()) { Text("TIME UP · VOTE") }
+                Spacer(Modifier.weight(1f)); PartyButton("The group solved it", { solved = true; phase = 2 })
+                OutlinedButton({ solved = false; phase = 2 }, Modifier.fillMaxWidth()) { Text("Time up · Vote") }
             }
             2 -> {
                 Text(if (solved) "Who tried to mislead you?" else "Who was secretly helping?", style = MaterialTheme.typography.headlineMedium)
@@ -973,18 +1408,18 @@ private fun InsideVoiceGameScreen(state: AppUiState, complete: (Boolean) -> Unit
                         Card(Modifier.fillMaxWidth().clickable { votedIndex = item.index }, shape = RoundedCornerShape(18.dp), border = BorderStroke(2.dp, if (votedIndex == item.index) Pink else MaterialTheme.colorScheme.outline)) { Text(item.value, Modifier.padding(17.dp), fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
-                PartyButton("LOCK THE VOTE", { phase = 3 }, enabled = votedIndex != null)
+                PartyButton("Lock the vote", { phase = 3 }, enabled = votedIndex != null)
             }
             else -> {
                 val target = if (solved) distorter else navigator
                 val caught = votedIndex == target
-                Spacer(Modifier.weight(1f)); Text(if (caught) "VOICE FOUND" else "VOICE ESCAPED", style = MaterialTheme.typography.displayLarge, color = if (caught) Green else Pink, textAlign = TextAlign.Center)
+                Spacer(Modifier.weight(1f)); Text(if (caught) "Voice found" else "Voice escaped", style = MaterialTheme.typography.displayLarge, color = if (caught) Green else Pink, textAlign = TextAlign.Center)
                 Text("${players[target]} was the ${if (solved) "Distorter" else "Navigator"}.", fontSize = 22.sp, textAlign = TextAlign.Center)
                 Text("The secret word was $secret.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.weight(1f)); PartyButton("SEE ROUND RESULT", { complete(caught) })
+                Spacer(Modifier.weight(1f)); PartyButton("See round result", { complete(caught) })
             }
         }
-        if (phase < 3) TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        if (phase < 3) TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1002,21 +1437,21 @@ private fun CrowdTrapGameScreen(state: AppUiState, complete: (Boolean) -> Unit, 
     var votedIndex by remember { mutableStateOf<Int?>(null) }
     val question = runtime.currentPrompt?.text.orEmpty()
     fun groups(values: List<String>) = values.filter { it.isNotBlank() }.groupingBy { it.trim().lowercase() }.eachCount().entries.sortedByDescending { it.value }
-    Page("CROWD TRAP", eyebrow = when (phase) { 0 -> "SECRET ROLE"; 1 -> "PRIVATE ANSWERS"; 2 -> "THE CROWD SPEAKS"; 3 -> "FINAL ANSWERS"; 4 -> "RESULTS"; 5 -> "FIND THE TRENDSETTER"; else -> "REVEAL" }) {
+    Page("Crowd Trap", eyebrow = when (phase) { 0 -> "Secret role"; 1 -> "Private answers"; 2 -> "The crowd speaks"; 3 -> "Final answers"; 4 -> "Results"; 5 -> "Find the trendsetter"; else -> "Reveal" }) {
         when (phase) {
             0 -> {
-                Spacer(Modifier.weight(1f)); Text("Pass to ${players[playerIndex]}")
-                Card(Modifier.fillMaxWidth().clickable { revealed = true }, colors = CardDefaults.cardColors(containerColor = if (playerIndex == trendsetter) Pink else Acid), shape = PartyShape) {
-                    Box(Modifier.height(190.dp).fillMaxWidth(), contentAlignment = Alignment.Center) { Text(if (!revealed) "TAP TO REVEAL" else if (playerIndex == trendsetter) "YOU ARE THE TRENDSETTER\n\nMake at least one person switch answers." else "YOU ARE THE CROWD\n\nMatch the final majority.", Modifier.padding(20.dp), color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) }
+                Spacer(Modifier.weight(1f)); Text("Pass the phone to ${players[playerIndex]}")
+                Card(Modifier.fillMaxWidth().clickable { revealed = true }, colors = CardDefaults.cardColors(containerColor = Acid), shape = PartyShape) {
+                    Box(Modifier.height(190.dp).fillMaxWidth(), contentAlignment = Alignment.Center) { Text(if (!revealed) "Tap to reveal" else if (playerIndex == trendsetter) "YOU ARE THE TRENDSETTER\n\nMake at least one person switch answers." else "YOU ARE THE CROWD\n\nMatch the final majority.", Modifier.padding(20.dp), color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) }
                 }
-                Spacer(Modifier.weight(1f)); PartyButton(if (playerIndex == players.lastIndex) "START QUESTION" else "HIDE & PASS", { if (playerIndex == players.lastIndex) { phase = 1; playerIndex = 0 } else { playerIndex++; revealed = false } }, enabled = revealed)
+                Spacer(Modifier.weight(1f)); PartyButton(if (playerIndex == players.lastIndex) "Start question" else "Hide & pass", { if (playerIndex == players.lastIndex) { phase = 1; playerIndex = 0 } else { playerIndex++; revealed = false } }, enabled = revealed)
             }
             1, 3 -> {
                 Text(question, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
                 Text("${players[playerIndex]} answers privately", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
                 if (phase == 3) Text("First answer: ${firstAnswers[playerIndex]}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(input, { input = it.take(40) }, label = { Text(if (phase == 1) "Short answer" else "Keep or change") }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.weight(1f)); PartyButton("LOCK & PASS", {
+                Spacer(Modifier.weight(1f)); PartyButton("Lock & pass", {
                     if (phase == 1) firstAnswers[playerIndex] = input.trim() else finalAnswers[playerIndex] = input.trim()
                     if (playerIndex == players.lastIndex) { input = ""; phase = if (phase == 1) 2 else 4; playerIndex = 0 }
                     else { playerIndex++; input = if (phase == 3) firstAnswers[playerIndex] else "" }
@@ -1027,28 +1462,28 @@ private fun CrowdTrapGameScreen(state: AppUiState, complete: (Boolean) -> Unit, 
                 Text("Anonymous first answers", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(groups(firstAnswers).toList()) { item -> PartyPanel(item.key.uppercase(), Sky) { Text("${item.value} player${if (item.value == 1) "" else "s"}") } } }
                 Text("Debate for 30 seconds. The Trendsetter is trying to move the crowd.", textAlign = TextAlign.Center)
-                PartyButton("ANSWER AGAIN", { phase = 3; input = firstAnswers[0] })
+                PartyButton("Answer again", { phase = 3; input = firstAnswers[0] })
             }
             4 -> {
                 val changed = players.indices.count { !firstAnswers[it].equals(finalAnswers[it], true) }
-                Text("FINAL CROWD", style = MaterialTheme.typography.headlineMedium)
+                Text("Final crowd", style = MaterialTheme.typography.headlineMedium)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(groups(finalAnswers).toList()) { item -> PartyPanel(item.key.uppercase(), Tangerine) { Text("${item.value} vote${if (item.value == 1) "" else "s"}") } } }
                 Text("$changed player${if (changed == 1) "" else "s"} switched.", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
-                PartyButton("VOTE FOR THE TRENDSETTER", { phase = 5 })
+                PartyButton("Vote for the trendsetter", { phase = 5 })
             }
             5 -> {
                 Text("Who steered the discussion?", style = MaterialTheme.typography.headlineMedium)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(players.withIndex().toList()) { item -> Card(Modifier.fillMaxWidth().clickable { votedIndex = item.index }, border = BorderStroke(2.dp, if (votedIndex == item.index) Pink else MaterialTheme.colorScheme.outline)) { Text(item.value, Modifier.padding(17.dp), fontWeight = FontWeight.Bold) } } }
-                PartyButton("REVEAL", { phase = 6 }, enabled = votedIndex != null)
+                PartyButton("Reveal", { phase = 6 }, enabled = votedIndex != null)
             }
             else -> {
                 val caught = votedIndex == trendsetter
-                Spacer(Modifier.weight(1f)); Text(if (caught) "CROWD WINS" else "TRENDSETTER WINS", style = MaterialTheme.typography.displayLarge, color = if (caught) Green else Pink, textAlign = TextAlign.Center)
+                Spacer(Modifier.weight(1f)); Text(if (caught) "Crowd wins" else "Trendsetter wins", style = MaterialTheme.typography.displayLarge, color = if (caught) Green else Pink, textAlign = TextAlign.Center)
                 Text("${players[trendsetter]} was the Trendsetter.", fontSize = 22.sp, textAlign = TextAlign.Center)
-                Spacer(Modifier.weight(1f)); PartyButton("SEE ROUND RESULT", { complete(caught) })
+                Spacer(Modifier.weight(1f)); PartyButton("See round result", { complete(caught) })
             }
         }
-        if (phase < 6) TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        if (phase < 6) TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1060,7 +1495,7 @@ private fun SignalLineGameScreen(state: AppUiState, complete: (Boolean) -> Unit,
     val jammer = remember(caller) { players.indices.filter { it != caller }.random() }
     val target = remember(runtime.session.id, runtime.session.currentRound) { kotlin.random.Random.nextInt(5, 96) }
     val ends = runtime.currentPrompt?.text.orEmpty().split("|").map { it.trim() }
-    val left = ends.getOrElse(0) { "LOW" }; val right = ends.getOrElse(1) { "HIGH" }
+    val left = ends.getOrElse(0) { "Low" }; val right = ends.getOrElse(1) { "High" }
     val guessers = remember(caller) { players.indices.filter { it != caller } }
     val guesses = remember { mutableStateListOf<Float>().also { list -> repeat(players.size) { list.add(50f) } } }
     var phase by remember { mutableStateOf(0) }
@@ -1071,59 +1506,59 @@ private fun SignalLineGameScreen(state: AppUiState, complete: (Boolean) -> Unit,
     var slider by remember { mutableStateOf(50f) }
     var groupMarker by remember { mutableStateOf(50f) }
     var votedIndex by remember { mutableStateOf<Int?>(null) }
-    Page("SIGNAL LINE", eyebrow = when (phase) { 0 -> "SECRET ROLES"; 1 -> "CALL THE SIGNAL"; 2 -> "PRIVATE READS"; 3 -> "GROUP DECISION"; 4 -> "FIND THE JAMMER"; else -> "REVEAL" }) {
+    Page("Signal Line", eyebrow = when (phase) { 0 -> "Secret roles"; 1 -> "Call the signal"; 2 -> "Private reads"; 3 -> "Group decision"; 4 -> "Find the jammer"; else -> "Reveal" }) {
         when (phase) {
             0 -> {
-                Spacer(Modifier.weight(1f)); Text("Pass to ${players[playerIndex]}")
-                Card(Modifier.fillMaxWidth().clickable { revealed = true }, colors = CardDefaults.cardColors(containerColor = when (playerIndex) { caller -> Sky; jammer -> Pink; else -> Acid }), shape = PartyShape) { Box(Modifier.height(210.dp).fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                Spacer(Modifier.weight(1f)); Text("Pass the phone to ${players[playerIndex]}")
+                Card(Modifier.fillMaxWidth().clickable { revealed = true }, colors = CardDefaults.cardColors(containerColor = Acid), shape = PartyShape) { Box(Modifier.height(210.dp).fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
                     val zoneStart = (target / 25) * 25
                     val role = when (playerIndex) { caller -> "CALLER\nTarget: $target / 100\nGive a scenario that lands there."; jammer -> "JAMMER\nTarget zone: $zoneStart–${(zoneStart + 25).coerceAtMost(100)}\nPush the group away from it."; else -> "READER\nPlace the Caller's scenario on the line." }
-                    Text(if (revealed) role else "TAP TO REVEAL", color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+                    Text(if (revealed) role else "Tap to reveal", color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
                 } }
-                Spacer(Modifier.weight(1f)); PartyButton(if (playerIndex == players.lastIndex) "CALL THE SIGNAL" else "HIDE & PASS", { if (playerIndex == players.lastIndex) phase = 1 else { playerIndex++; revealed = false } }, enabled = revealed)
+                Spacer(Modifier.weight(1f)); PartyButton(if (playerIndex == players.lastIndex) "Call the signal" else "Hide & pass", { if (playerIndex == players.lastIndex) phase = 1 else { playerIndex++; revealed = false } }, enabled = revealed)
             }
             1 -> {
                 Text("$left  ↔  $right", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
                 Text("${players[caller]}, your hidden target is $target", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
                 OutlinedTextField(scenario, { scenario = it.take(100) }, label = { Text("A scenario, not a number") }, minLines = 3, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.weight(1f)); PartyButton("LOCK CLUE & PASS", { phase = 2 }, enabled = scenario.isNotBlank())
+                Spacer(Modifier.weight(1f)); PartyButton("Lock clue & pass", { phase = 2 }, enabled = scenario.isNotBlank())
             }
             2 -> {
                 val current = guessers[guessTurn]
                 Text("$left  ↔  $right", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
-                PartyPanel("THE SCENARIO", Sky) { Text(scenario, fontSize = 21.sp, fontWeight = FontWeight.Bold) }
+                PartyPanel("The scenario", Sky) { Text(scenario, fontSize = 21.sp, fontWeight = FontWeight.Bold) }
                 Text("${players[current]} places it privately", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
                 Text("${slider.roundToInt()}", fontSize = 54.sp, fontWeight = FontWeight.Black)
                 Slider(slider, { slider = it }, valueRange = 0f..100f)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(left); Text(right) }
-                Spacer(Modifier.weight(1f)); PartyButton("LOCK & PASS", { guesses[current] = slider; slider = 50f; if (guessTurn == guessers.lastIndex) phase = 3 else guessTurn++ })
+                Spacer(Modifier.weight(1f)); PartyButton("Lock & pass", { guesses[current] = slider; slider = 50f; if (guessTurn == guessers.lastIndex) phase = 3 else guessTurn++ })
             }
             3 -> {
                 val spread = guessers.map { guesses[it] }
-                Text("READ THE ROOM", style = MaterialTheme.typography.headlineMedium)
+                Text("Read the room", style = MaterialTheme.typography.headlineMedium)
                 Text("Private guesses spread from ${spread.min().roundToInt()} to ${spread.max().roundToInt()}.", textAlign = TextAlign.Center)
                 Text("Debate, then place one shared marker.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("${groupMarker.roundToInt()}", fontSize = 64.sp, fontWeight = FontWeight.Black)
                 Slider(groupMarker, { groupMarker = it }, valueRange = 0f..100f)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(left); Text(right) }
-                Spacer(Modifier.weight(1f)); PartyButton("LOCK GROUP MARKER", { phase = 4 })
+                Spacer(Modifier.weight(1f)); PartyButton("Lock group marker", { phase = 4 })
             }
             4 -> {
                 Text("Who jammed the discussion?", style = MaterialTheme.typography.headlineMedium)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(players.withIndex().filter { it.index != caller }) { item -> Card(Modifier.fillMaxWidth().clickable { votedIndex = item.index }, border = BorderStroke(2.dp, if (votedIndex == item.index) Pink else MaterialTheme.colorScheme.outline)) { Text(item.value, Modifier.padding(17.dp), fontWeight = FontWeight.Bold) } } }
-                PartyButton("REVEAL SIGNAL", { phase = 5 }, enabled = votedIndex != null)
+                PartyButton("Reveal signal", { phase = 5 }, enabled = votedIndex != null)
             }
             else -> {
                 val accurate = kotlin.math.abs(groupMarker - target) <= 10f
                 val caught = votedIndex == jammer
                 val crewWon = accurate && caught
-                Spacer(Modifier.weight(1f)); Text(if (crewWon) "SIGNAL FOUND" else "SIGNAL JAMMED", style = MaterialTheme.typography.displayLarge, color = if (crewWon) Green else Pink, textAlign = TextAlign.Center)
+                Spacer(Modifier.weight(1f)); Text(if (crewWon) "Signal found" else "Signal jammed", style = MaterialTheme.typography.displayLarge, color = if (crewWon) Green else Pink, textAlign = TextAlign.Center)
                 Text("Target $target · Group ${groupMarker.roundToInt()}", fontSize = 25.sp, fontWeight = FontWeight.Black)
                 Text("${players[jammer]} was the Jammer.${if (!caught) " The vote missed." else ""}", textAlign = TextAlign.Center)
-                Spacer(Modifier.weight(1f)); PartyButton("SEE ROUND RESULT", { complete(crewWon) })
+                Spacer(Modifier.weight(1f)); PartyButton("See round result", { complete(crewWon) })
             }
         }
-        if (phase < 5) TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        if (phase < 5) TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1135,28 +1570,28 @@ private fun TruthOrDareGameScreen(state: AppUiState, complete: (Boolean) -> Unit
     var selected by remember { mutableStateOf(0) }
     var spinning by remember { mutableStateOf(false) }
     var phase by remember { mutableStateOf(0) }
-    var choice by remember { mutableStateOf("TRUTH") }
+    var choice by remember { mutableStateOf("Truth") }
     LaunchedEffect(spinning) {
         if (spinning) {
             repeat(16) { selected = (selected + 1) % players.size; delay(45L + it * 6L) }
             selected = kotlin.random.Random.nextInt(players.size); spinning = false; phase = 1
         }
     }
-    Page("TRUTH OR DARE", eyebrow = when (phase) { 0 -> "SPIN THE PLAYER"; 1 -> "MAKE THE CHOICE"; else -> choice }) {
+    Page("Truth or Dare", eyebrow = when (phase) { 0 -> "Spin the player"; 1 -> "Make the choice"; else -> choice }) {
         Spacer(Modifier.weight(1f))
         Surface(shape = CircleShape, color = if (spinning) Tangerine else Pink, modifier = Modifier.size(190.dp)) { Box(contentAlignment = Alignment.Center) { Text(players[selected], Modifier.padding(18.dp), color = Ink, fontSize = 29.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) } }
         when (phase) {
-            0 -> PartyButton(if (spinning) "SPINNING…" else "SPIN THE WHEEL", { spinning = true }, enabled = !spinning)
+            0 -> PartyButton(if (spinning) "Spinning…" else "Spin the wheel", { spinning = true }, enabled = !spinning)
             1 -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button({ choice = "TRUTH"; phase = 2 }, Modifier.weight(1f).height(72.dp), colors = ButtonDefaults.buttonColors(containerColor = Sky, contentColor = Ink)) { Text("TRUTH", fontWeight = FontWeight.Black) }
-                Button({ choice = "DARE"; phase = 2 }, Modifier.weight(1f).height(72.dp), colors = ButtonDefaults.buttonColors(containerColor = Pink, contentColor = Color.White)) { Text("DARE", fontWeight = FontWeight.Black) }
+                Button({ choice = "Truth"; phase = 2 }, Modifier.weight(1f).height(72.dp), colors = ButtonDefaults.buttonColors(containerColor = Sky, contentColor = Color.White)) { Text("Truth", fontWeight = FontWeight.Black) }
+                Button({ choice = "Dare"; phase = 2 }, Modifier.weight(1f).height(72.dp), colors = ButtonDefaults.buttonColors(containerColor = Pink, contentColor = Ink)) { Text("Dare", fontWeight = FontWeight.Black) }
             }
             else -> {
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (choice == "TRUTH") Sky else Pink), shape = PartyShape) { Text(if (choice == "TRUTH") pair.firstOrNull().orEmpty() else pair.getOrElse(1) { pair.firstOrNull().orEmpty() }, Modifier.padding(24.dp), color = if (choice == "TRUTH") Ink else Color.White, fontSize = 27.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) }
-                PartyButton("CHALLENGE COMPLETE", { complete(true) })
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (choice == "Truth") Sky else Pink), shape = PartyShape) { Text(if (choice == "Truth") pair.firstOrNull().orEmpty() else pair.getOrElse(1) { pair.firstOrNull().orEmpty() }, Modifier.padding(24.dp), color = if (choice == "Truth") Color.White else Ink, fontSize = 27.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) }
+                PartyButton("Challenge complete", { complete(true) })
             }
         }
-        TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1168,12 +1603,12 @@ private fun MostLikelyGameScreen(state: AppUiState, complete: (Boolean) -> Unit,
     var voter by remember { mutableStateOf(0) }
     var selected by remember { mutableStateOf<Int?>(null) }
     var reveal by remember { mutableStateOf(false) }
-    Page("MOST LIKELY", eyebrow = if (reveal) "ROOM VERDICT" else "PRIVATE VOTE ${voter + 1} OF ${players.size}") {
+    Page("Most Likely", eyebrow = if (reveal) "Room verdict" else "Private vote ${voter + 1} of ${players.size}") {
         Text(runtime.currentPrompt?.text.orEmpty(), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
         if (!reveal) {
-            Text("Pass to ${players[voter]}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
+            Text("Pass the phone to ${players[voter]}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(players.withIndex().toList()) { item -> Card(Modifier.fillMaxWidth().clickable { selected = item.index }, border = BorderStroke(2.dp, if (selected == item.index) Pink else MaterialTheme.colorScheme.outline)) { Text(item.value, Modifier.padding(17.dp), fontWeight = FontWeight.Bold) } } }
-            PartyButton("LOCK & PASS", { votes.add(selected!!); selected = null; if (voter == players.lastIndex) reveal = true else voter++ }, enabled = selected != null)
+            PartyButton("Lock & pass", { votes.add(selected!!); selected = null; if (voter == players.lastIndex) reveal = true else voter++ }, enabled = selected != null)
         } else {
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(players.withIndex().sortedByDescending { candidate -> votes.count { it == candidate.index } }) { item ->
@@ -1181,9 +1616,9 @@ private fun MostLikelyGameScreen(state: AppUiState, complete: (Boolean) -> Unit,
                     PartyPanel(item.value.uppercase(), if (percent == votes.groupingBy { it }.eachCount().values.maxOrNull()?.times(100)?.div(votes.size.coerceAtLeast(1))) Pink else Sky) { LinearProgressIndicator({ percent / 100f }, Modifier.fillMaxWidth()); Text("$percent% · $count votes", fontWeight = FontWeight.Bold) }
                 }
             }
-            PartyButton("ROUND COMPLETE", { complete(true) })
+            PartyButton("Round complete", { complete(true) })
         }
-        TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1196,20 +1631,20 @@ private fun NeverHaveIEverGameScreen(state: AppUiState, complete: (Boolean) -> U
     var card by remember { mutableStateOf(0) }
     var finished by remember { mutableStateOf(false) }
     val prompt = runtime.prompts[card % runtime.prompts.size].text
-    Page("NEVER HAVE I EVER", eyebrow = if (finished) "LAST HEARTS STANDING" else "CONFESSION ${card + 1}") {
+    Page("Never Have I Ever", eyebrow = if (finished) "Last hearts standing" else "Confession ${card + 1} of 10") {
         if (!finished) {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Pink), shape = PartyShape) { Text(prompt, Modifier.padding(24.dp), color = Color.White, fontSize = 28.sp, lineHeight = 33.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) }
             Text("If you have, tap your name once.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(players.withIndex().toList()) { item -> Card(Modifier.fillMaxWidth().clickable(enabled = hearts[item.index] > 0 && item.index !in guilty) { guilty.add(item.index); hearts[item.index]-- }, border = BorderStroke(2.dp, if (item.index in guilty) Pink else MaterialTheme.colorScheme.outline)) { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(item.value, fontWeight = FontWeight.Bold); Text("♥".repeat(hearts[item.index]), color = Pink, fontSize = 20.sp) } } } }
-            PartyButton("NEXT CONFESSION", { val alive = hearts.count { it > 0 }; if (alive <= 1 || card >= 9) finished = true else { card++; guilty.clear() } })
+            PartyButton("Next confession", { val alive = hearts.count { it > 0 }; if (alive <= 1 || card >= 9) finished = true else { card++; guilty.clear() } })
         } else {
             Spacer(Modifier.weight(1f)); val best = hearts.maxOrNull() ?: 0
-            Text("SURVIVORS", style = MaterialTheme.typography.displayLarge, color = Green)
+            Text("Survivors", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.secondary)
             Text(players.indices.filter { hearts[it] == best }.joinToString { players[it] }, fontSize = 28.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
             Text("$best hearts remaining", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.weight(1f)); PartyButton("SEE ROUND RESULT", { complete(true) })
+            Spacer(Modifier.weight(1f)); PartyButton("See round result", { complete(true) })
         }
-        TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1221,19 +1656,19 @@ private fun WouldYouRatherGameScreen(state: AppUiState, complete: (Boolean) -> U
     val votes = remember { mutableStateListOf<Boolean>() }
     var voter by remember { mutableStateOf(0) }
     var reveal by remember { mutableStateOf(false) }
-    Page("WOULD YOU RATHER", eyebrow = if (reveal) "THE ROOM CHOSE" else "${players[voter]}'S PRIVATE CHOICE") {
+    Page("Would You Rather", eyebrow = if (reveal) "The room chose" else "${players[voter]} chooses privately") {
         Spacer(Modifier.weight(1f))
         if (!reveal) {
-            Button({ votes.add(false); if (voter == players.lastIndex) reveal = true else voter++ }, Modifier.fillMaxWidth().weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Sky, contentColor = Ink), shape = PartyShape) { Text("A\n${options.firstOrNull().orEmpty()}", fontSize = 24.sp, lineHeight = 29.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) }
+            Button({ votes.add(false); if (voter == players.lastIndex) reveal = true else voter++ }, Modifier.fillMaxWidth().weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Sky, contentColor = Color.White), shape = PartyShape) { Text("A\n${options.firstOrNull().orEmpty()}", fontSize = 24.sp, lineHeight = 29.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) }
             Text("OR", fontWeight = FontWeight.Black)
             Button({ votes.add(true); if (voter == players.lastIndex) reveal = true else voter++ }, Modifier.fillMaxWidth().weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Pink), shape = PartyShape) { Text("B\n${options.getOrElse(1) { "" }}", fontSize = 24.sp, lineHeight = 29.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) }
         } else {
             val b = votes.count { it }; val a = votes.size - b
             PartyPanel("A · ${a * 100 / votes.size}%", Sky) { Text(options.firstOrNull().orEmpty(), fontSize = 22.sp, fontWeight = FontWeight.Bold); LinearProgressIndicator({ a / votes.size.toFloat() }, Modifier.fillMaxWidth()) }
             PartyPanel("B · ${b * 100 / votes.size}%", Pink) { Text(options.getOrElse(1) { "" }, fontSize = 22.sp, fontWeight = FontWeight.Bold); LinearProgressIndicator({ b / votes.size.toFloat() }, Modifier.fillMaxWidth(), color = Pink) }
-            Spacer(Modifier.weight(1f)); PartyButton("ROUND COMPLETE", { complete(true) })
+            Spacer(Modifier.weight(1f)); PartyButton("Round complete", { complete(true) })
         }
-        TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1250,14 +1685,14 @@ private fun FakeItGameScreen(state: AppUiState, complete: (Boolean) -> Unit, qui
     var playerIndex by remember { mutableStateOf(0) }
     var input by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<Int?>(null) }
-    Page("FAKE IT", eyebrow = when (phase) { 0 -> "WRITE A LIE"; 1 -> "FIND THE TRUTH"; else -> "SCORES" }) {
+    Page("Fake It", eyebrow = when (phase) { 0 -> "Write a lie"; 1 -> "Find the truth"; else -> "Scores" }) {
         Text(question, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
         when (phase) {
             0 -> {
                 Text("${players[playerIndex]} writes privately", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
                 Text("Invent a believable wrong answer.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(input, { input = it.take(60) }, label = { Text("Fake answer") }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.weight(1f)); PartyButton("LOCK & PASS", {
+                Spacer(Modifier.weight(1f)); PartyButton("Lock & pass", {
                     fakes[playerIndex] = input.trim(); input = ""
                     if (playerIndex == players.lastIndex) { options.addAll((fakes.mapIndexed { index, text -> FakeOption(text, index) } + FakeOption(answer, correct = true)).shuffled()); playerIndex = 0; phase = 1 } else playerIndex++
                 }, enabled = input.isNotBlank() && !input.trim().equals(answer, true))
@@ -1265,7 +1700,7 @@ private fun FakeItGameScreen(state: AppUiState, complete: (Boolean) -> Unit, qui
             1 -> {
                 Text("${players[playerIndex]} votes privately", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(options.withIndex().filter { it.value.author != playerIndex }, key = { it.index }) { item -> Card(Modifier.fillMaxWidth().clickable { selected = item.index }, border = BorderStroke(2.dp, if (selected == item.index) Pink else MaterialTheme.colorScheme.outline)) { Text(item.value.text, Modifier.padding(17.dp), fontWeight = FontWeight.Bold) } } }
-                PartyButton("LOCK & PASS", {
+                PartyButton("Lock & pass", {
                     val chosen = options[selected!!]
                     if (chosen.correct) scores[playerIndex] += 2 else chosen.author?.let { scores[it]++ }
                     selected = null
@@ -1273,12 +1708,12 @@ private fun FakeItGameScreen(state: AppUiState, complete: (Boolean) -> Unit, qui
                 }, enabled = selected != null)
             }
             else -> {
-                PartyPanel("REAL ANSWER", Green) { Text(answer, fontSize = 25.sp, fontWeight = FontWeight.Black) }
-                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) { items(players.indices.sortedByDescending { scores[it] }) { index -> Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(players[index], fontWeight = FontWeight.Bold); Text("${scores[index]} pts", color = Green, fontWeight = FontWeight.Black) } } }
-                PartyButton("ROUND COMPLETE", { complete(true) })
+                PartyPanel("Real answer", Green) { Text(answer, fontSize = 25.sp, fontWeight = FontWeight.Black) }
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) { items(players.indices.sortedByDescending { scores[it] }) { index -> Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(players[index], fontWeight = FontWeight.Bold); Text("${scores[index]} pts", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black) } } }
+                PartyButton("Round complete", { complete(true) })
             }
         }
-        TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1292,31 +1727,31 @@ private fun DrawAndGuessGameScreen(state: AppUiState, complete: (Boolean) -> Uni
     var seconds by remember { mutableStateOf(60) }
     var solved by remember { mutableStateOf(false) }
     LaunchedEffect(phase) { if (phase == 1) { while (seconds > 0 && !solved) { delay(1_000); seconds-- }; phase = 2 } }
-    Page("DRAW & GUESS", eyebrow = when (phase) { 0 -> "ARTIST ONLY"; 1 -> "$seconds SECONDS"; else -> "ROUND OVER" }) {
+    Page("Draw & Guess", eyebrow = when (phase) { 0 -> "Artist only"; 1 -> "$seconds seconds left"; else -> "ROUND OVER" }) {
         when (phase) {
             0 -> {
                 Spacer(Modifier.weight(1f)); Text("Secret word", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(runtime.currentPrompt?.text.orEmpty(), style = MaterialTheme.typography.displayLarge, textAlign = TextAlign.Center)
                 Text("Show only the artist, then hide the word.", textAlign = TextAlign.Center)
-                Spacer(Modifier.weight(1f)); PartyButton("START DRAWING", { phase = 1 })
+                Spacer(Modifier.weight(1f)); PartyButton("Start drawing", { phase = 1 })
             }
             1 -> {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                     listOf(Ink, Pink, Sky, Green, Tangerine).forEach { value -> Box(Modifier.size(34.dp).background(value, CircleShape).border(if (color == value) 3.dp else 1.dp, Color.White, CircleShape).clickable { color = value }) }
-                    TextButton({ color = Paper }) { Text("ERASER") }
-                    TextButton({ marks.clear() }) { Text("CLEAR") }
+                    TextButton({ color = Paper }) { Text("Eraser") }
+                    TextButton({ marks.clear() }) { Text("Clear") }
                 }
                 Slider(width, { width = it }, valueRange = 4f..28f)
                 GameDrawingCanvas(marks, color, width, Modifier.fillMaxWidth().weight(1f))
-                PartyButton("GUESSED IT!", { solved = true; phase = 2 })
+                PartyButton("Guessed it!", { solved = true; phase = 2 })
             }
             else -> {
-                Spacer(Modifier.weight(1f)); Text(if (solved) "MASTERPIECE!" else "TIME'S UP!", style = MaterialTheme.typography.displayLarge, color = if (solved) Green else Pink)
+                Spacer(Modifier.weight(1f)); Text(if (solved) "Masterpiece!" else "Time's up!", style = MaterialTheme.typography.displayLarge, color = if (solved) Green else Pink)
                 Text("The word was ${runtime.currentPrompt?.text.orEmpty()}.", fontSize = 23.sp, textAlign = TextAlign.Center)
-                Spacer(Modifier.weight(1f)); PartyButton("SEE ROUND RESULT", { complete(solved) })
+                Spacer(Modifier.weight(1f)); PartyButton("See round result", { complete(solved) })
             }
         }
-        TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1342,31 +1777,31 @@ private fun TwinWordSpyGameScreen(state: AppUiState, complete: (Boolean) -> Unit
     val spy = remember(runtime.session.id, runtime.session.currentRound) { kotlin.random.Random.nextInt(players.size) }
     val order = remember(runtime.session.id, runtime.session.currentRound) { players.indices.shuffled() }
     var phase by remember { mutableStateOf(0) }; var player by remember { mutableStateOf(0) }; var revealed by remember { mutableStateOf(false) }; var clue by remember { mutableStateOf(0) }; var vote by remember { mutableStateOf<Int?>(null) }
-    Page("TWIN WORD SPY", eyebrow = when (phase) { 0 -> "SECRET WORDS"; 1 -> "ONE CLUE EACH"; 2 -> "FIND THE SPY"; else -> "REVEAL" }) {
+    Page("Twin Word Spy", eyebrow = when (phase) { 0 -> "Secret words"; 1 -> "One clue each"; 2 -> "Find the spy"; else -> "Reveal" }) {
         when (phase) {
             0 -> {
-                Spacer(Modifier.weight(1f)); Text("Pass to ${players[player]}")
-                Card(Modifier.fillMaxWidth().clickable { revealed = true }, colors = CardDefaults.cardColors(containerColor = if (player == spy) Pink else Acid), shape = PartyShape) { Box(Modifier.height(190.dp).fillMaxWidth(), contentAlignment = Alignment.Center) { Text(if (revealed) "YOUR WORD\n${if (player == spy) words.getOrElse(1) { "?" } else words.firstOrNull().orEmpty()}" else "TAP TO REVEAL", color = Ink, fontSize = 29.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) } }
-                Spacer(Modifier.weight(1f)); PartyButton(if (player == players.lastIndex) "START CLUES" else "HIDE & PASS", { if (player == players.lastIndex) phase = 1 else { player++; revealed = false } }, enabled = revealed)
+                Spacer(Modifier.weight(1f)); Text("Pass the phone to ${players[player]}")
+                Card(Modifier.fillMaxWidth().clickable { revealed = true }, colors = CardDefaults.cardColors(containerColor = Acid), shape = PartyShape) { Box(Modifier.height(190.dp).fillMaxWidth(), contentAlignment = Alignment.Center) { Text(if (revealed) "YOUR WORD\n${if (player == spy) words.getOrElse(1) { "?" } else words.firstOrNull().orEmpty()}" else "TAP TO REVEAL", color = Ink, fontSize = 29.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) } }
+                Spacer(Modifier.weight(1f)); PartyButton(if (player == players.lastIndex) "Start clues" else "Hide & pass", { if (player == players.lastIndex) phase = 1 else { player++; revealed = false } }, enabled = revealed)
             }
             1 -> {
-                Spacer(Modifier.weight(1f)); Text("CLUE ${clue + 1} OF ${players.size}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
+                Spacer(Modifier.weight(1f)); Text("Clue ${clue + 1} of ${players.size}", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black)
                 Text(players[order[clue]], style = MaterialTheme.typography.displayLarge, textAlign = TextAlign.Center)
                 Text("Describe your word with one short clue. Do not say the word.", textAlign = TextAlign.Center)
-                Spacer(Modifier.weight(1f)); PartyButton(if (clue == players.lastIndex) "VOTE" else "NEXT CLUE", { if (clue == players.lastIndex) phase = 2 else clue++ })
+                Spacer(Modifier.weight(1f)); PartyButton(if (clue == players.lastIndex) "Vote" else "Next clue", { if (clue == players.lastIndex) phase = 2 else clue++ })
             }
             2 -> {
                 Text("Who received the related word?", style = MaterialTheme.typography.headlineMedium)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(players.withIndex().toList()) { item -> Card(Modifier.fillMaxWidth().clickable { vote = item.index }, border = BorderStroke(2.dp, if (vote == item.index) Pink else MaterialTheme.colorScheme.outline)) { Text(item.value, Modifier.padding(17.dp), fontWeight = FontWeight.Bold) } } }
-                PartyButton("REVEAL", { phase = 3 }, enabled = vote != null)
+                PartyButton("Reveal", { phase = 3 }, enabled = vote != null)
             }
             else -> {
-                val caught = vote == spy; Spacer(Modifier.weight(1f)); Text(if (caught) "SPY CAUGHT" else "SPY ESCAPED", style = MaterialTheme.typography.displayLarge, color = if (caught) Green else Pink, textAlign = TextAlign.Center)
+                val caught = vote == spy; Spacer(Modifier.weight(1f)); Text(if (caught) "Spy caught" else "Spy escaped", style = MaterialTheme.typography.displayLarge, color = if (caught) Green else Pink, textAlign = TextAlign.Center)
                 Text("${players[spy]} had “${words.getOrElse(1) { "?" }}”. Everyone else had “${words.firstOrNull().orEmpty()}”.", fontSize = 22.sp, textAlign = TextAlign.Center)
-                Spacer(Modifier.weight(1f)); PartyButton("SEE ROUND RESULT", { complete(caught) })
+                Spacer(Modifier.weight(1f)); PartyButton("See round result", { complete(caught) })
             }
         }
-        TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1387,58 +1822,58 @@ private fun TelephoneGameScreen(state: AppUiState, complete: (Boolean) -> Unit, 
     fun record() {
         recorder.launch(Intent(MediaStore.ACTION_VIDEO_CAPTURE).putExtra(MediaStore.EXTRA_DURATION_LIMIT, 15))
     }
-    Page("MIME TELEPHONE", eyebrow = "${stage + 1} OF 6") {
+    Page("Mime Telephone", eyebrow = "${stage + 1} OF 6") {
         when (stage) {
             0 -> {
                 Text("${players.getOrElse(0) { "Player 1" }} writes the secret", style = MaterialTheme.typography.headlineMedium)
                 Text("Nobody else should see it.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(phrase, { phrase = it.take(120) }, label = { Text("A weird scene") }, minLines = 4, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.weight(1f)); PartyButton("LOCK PHRASE & PASS", { stage = 1 }, enabled = phrase.isNotBlank())
+                Spacer(Modifier.weight(1f)); PartyButton("Lock phrase & pass", { stage = 1 }, enabled = phrase.isNotBlank())
             }
             1 -> {
                 Text("${players.getOrElse(1) { "Player 2" }} records the mime", style = MaterialTheme.typography.headlineMedium)
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Acid), shape = PartyShape) { Text(phrase, Modifier.padding(22.dp), color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center) }
                 Text("You have up to 15 seconds. No spoken words.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.weight(1f)); OutlinedButton(::record, Modifier.fillMaxWidth().height(58.dp)) { Text(if (recorded) "RECORD AGAIN" else "RECORD 15s CLIP") }
-                PartyButton("HIDE PHRASE & PASS", { stage = 2 }, enabled = recorded)
+                Spacer(Modifier.weight(1f)); OutlinedButton(::record, Modifier.fillMaxWidth().height(58.dp)) { Text(if (recorded) "Record again" else "RECORD 15s CLIP") }
+                PartyButton("Hide phrase & pass", { stage = 2 }, enabled = recorded)
             }
             2 -> {
                 Text("${players.getOrElse(2) { "Player 3" }} watches the clip", style = MaterialTheme.typography.headlineMedium)
                 Text("Watch once, then draw only what you remember.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
-                Surface(shape = CircleShape, color = Sky, modifier = Modifier.size(150.dp)) { Box(contentAlignment = Alignment.Center) { Text("PLAY", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black) } }
+                Surface(shape = CircleShape, color = Sky, modifier = Modifier.size(150.dp)) { Box(contentAlignment = Alignment.Center) { Text("Play", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black) } }
                 Spacer(Modifier.weight(1f))
-                OutlinedButton({ clipUri?.let { context.startActivity(Intent(Intent.ACTION_VIEW, it).setDataAndType(it, "video/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) } }, Modifier.fillMaxWidth(), enabled = clipUri != null) { Text(if (clipUri == null) "CLIP CAPTURED" else "WATCH CLIP") }
-                PartyButton("DRAW WHAT YOU SAW", { stage = 3 })
+                OutlinedButton({ clipUri?.let { context.startActivity(Intent(Intent.ACTION_VIEW, it).setDataAndType(it, "video/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) } }, Modifier.fillMaxWidth(), enabled = clipUri != null) { Text(if (clipUri == null) "Clip captured" else "Watch clip") }
+                PartyButton("Draw what you saw", { stage = 3 })
             }
             3 -> {
                 Text("Draw it. No letters or words.", style = MaterialTheme.typography.headlineMedium)
                 DrawingPad(strokes, editable = true, modifier = Modifier.fillMaxWidth().weight(1f))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton({ strokes.clear() }, Modifier.weight(1f)) { Text("CLEAR") }
-                    Button({ stage = 4 }, Modifier.weight(1f), enabled = strokes.isNotEmpty()) { Text("PASS IT") }
+                    OutlinedButton({ strokes.clear() }, Modifier.weight(1f)) { Text("Clear") }
+                    Button({ stage = 4 }, Modifier.weight(1f), enabled = strokes.isNotEmpty()) { Text("Pass it") }
                 }
             }
             4 -> {
                 Text("${players.getOrElse(3) { "Player 4" }} guesses the original", style = MaterialTheme.typography.headlineMedium)
                 DrawingPad(strokes, editable = false, modifier = Modifier.fillMaxWidth().height(270.dp))
                 OutlinedTextField(guess, { guess = it.take(120) }, label = { Text("Your final guess") }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.weight(1f)); PartyButton("REVEAL THE CHAIN", { stage = 5 }, enabled = guess.isNotBlank())
+                Spacer(Modifier.weight(1f)); PartyButton("Reveal the chain", { stage = 5 }, enabled = guess.isNotBlank())
             }
             else -> {
-                Text("THE CHAIN", style = MaterialTheme.typography.headlineMedium)
-                PartyPanel("1 · ORIGINAL", Pink) { Text(phrase, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-                PartyPanel("2 · VIDEO", Sky) { Text(if (recorded) "15-second mime captured" else "No clip") }
-                PartyPanel("3 · DRAWING", Tangerine) { DrawingPad(strokes, editable = false, modifier = Modifier.fillMaxWidth().height(130.dp)) }
-                PartyPanel("4 · FINAL GUESS", Acid) { Text(guess, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                Text("The chain", style = MaterialTheme.typography.headlineMedium)
+                PartyPanel("1 · Original", Pink) { Text(phrase, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                PartyPanel("2 · Video", Sky) { Text(if (recorded) "15-second mime captured" else "No clip") }
+                PartyPanel("3 · Drawing", Tangerine) { DrawingPad(strokes, editable = false, modifier = Modifier.fillMaxWidth().height(130.dp)) }
+                PartyPanel("4 · Final guess", Acid) { Text(guess, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                 Text("Did the meaning survive?", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton({ complete(false) }, Modifier.weight(1f)) { Text("NOT EVEN CLOSE") }
-                    Button({ complete(true) }, Modifier.weight(1f)) { Text("NAILED IT") }
+                    OutlinedButton({ complete(false) }, Modifier.weight(1f)) { Text("Not even close") }
+                    Button({ complete(true) }, Modifier.weight(1f)) { Text("Nailed it") }
                 }
             }
         }
-        if (stage < 5) TextButton(quit, Modifier.fillMaxWidth()) { Text("Quit match") }
+        if (stage < 5) TextButton(quit, Modifier.fillMaxWidth()) { Text("Leave game") }
     }
 }
 
@@ -1466,172 +1901,195 @@ private fun DrawingPad(strokes: MutableList<Offset?>, editable: Boolean, modifie
 @Composable
 private fun SummaryScreen(state: AppUiState, vm: AppViewModel, onContinue: () -> Unit, onEnd: () -> Unit) {
     val runtime = state.runtime
-    Page("ROUND WRAPPED", eyebrow = "NICE MIME WORK") {
-        Card(Modifier.fillMaxWidth(), shape = PartyShape, colors = CardDefaults.cardColors(containerColor = Green)) {
-            Column(Modifier.padding(20.dp)) {
-                Text("${runtime?.score ?: 0}", fontSize = 68.sp, lineHeight = 68.sp, fontWeight = FontWeight.Black, color = Ink)
-                Text("POINTS THIS ROUND", color = Ink.copy(alpha = .7f), fontWeight = FontWeight.Black)
-            }
-        }
-        Text("Tap any answer to fix the score.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(runtime?.results?.withIndex()?.toList() ?: emptyList(), key = { it.value.promptId }) { indexed ->
-                val guessed = indexed.value.status == PromptStatus.GUESSED
-                Card(Modifier.fillMaxWidth().clickable { vm.override(indexed.index) }, shape = RoundedCornerShape(18.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(indexed.value.text, Modifier.weight(1f)); Text(if (guessed) "GOT IT" else "SKIP", color = if (guessed) Green else Yellow, fontWeight = FontWeight.Bold)
+    val session = state.session
+    val lastRound = session?.rounds?.lastOrNull()
+    val game = lastRound?.gameType ?: session?.activeGameType ?: GameType.CHARADES
+    val teams = session?.settings?.teams.orEmpty()
+    val scorer = teams.firstOrNull { it.id == lastRound?.activeTeamId }
+    val points = runtime?.score ?: lastRound?.score ?: 0
+    val completed = session?.completed == true
+    val colors = MaterialTheme.colorScheme
+    Page("Round ${lastRound?.index ?: 1} done", eyebrow = game.displayName().friendlyTitle()) {
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
+            item(key = "result") {
+                Surface(color = if (points > 0) Green else colors.surfaceVariant, contentColor = Ink, shape = PartyShape, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (game.isTimed()) {
+                            Text("$points", fontSize = 64.sp, lineHeight = 66.sp, fontWeight = FontWeight.Black)
+                            Text("${if (kotlin.math.abs(points) == 1) "point" else "points"} for ${if (teams.size > 1) scorer?.name ?: "this team" else "the group"}", fontWeight = FontWeight.ExtraBold)
+                        } else {
+                            Text(if (points > 0) "+1 point" else "No point this round", fontSize = 32.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black)
+                            Text(if (points > 0) "Nicely played, ${if (teams.size > 1) scorer?.name ?: "team" else "everyone"}!" else "Shake it off. Next round is a fresh start.", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
+            if (game.isTimed() && !runtime?.results.isNullOrEmpty()) {
+                item(key = "fix-hint") { Text("Marked something wrong? Tap a card to switch it.", color = colors.onSurfaceVariant, fontSize = 13.sp) }
+                items(runtime?.results?.withIndex()?.toList() ?: emptyList(), key = { it.index }) { indexed ->
+                    val status = indexed.value.status
+                    Surface(onClick = { if (status != PromptStatus.PENALTY) vm.override(indexed.index) }, color = colors.surface, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(indexed.value.text, Modifier.weight(1f))
+                            Text(when (status) { PromptStatus.GUESSED -> "✓ Got it"; PromptStatus.SKIPPED -> "Skipped"; PromptStatus.PENALTY -> "−1" },
+                                color = if (status == PromptStatus.GUESSED) Color(0xFF2F6B45) else colors.onSurfaceVariant, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+                }
+            }
+            item(key = "standings") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                    Text(if (teams.size > 1) "Scores so far" else "Group total", style = MaterialTheme.typography.titleMedium)
+                    teams.sortedByDescending { it.score }.forEach { team ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (teams.size > 1) team.name else team.players.joinToString(", "), Modifier.weight(1f), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text("${team.score} pts", color = colors.primary, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+            }
+            if (!completed && session != null) item(key = "next") {
+                val nextTeam = teams.getOrNull(session.activeTeamIndex)
+                Text("Up next: ${session.activeGameType.displayName().friendlyTitle()}${if (teams.size > 1 && nextTeam != null) " · ${nextTeam.name}" else ""}", color = colors.secondary, fontWeight = FontWeight.ExtraBold)
+            }
         }
-        PartyButton(if (state.session?.completed == true) "SEE FINAL SCORE" else "NEXT TURN", onContinue)
-        if (state.session?.settings?.totalRounds == null) OutlinedButton(onEnd, Modifier.fillMaxWidth()) { Text("END MATCH") }
+        PartyButton(if (completed) "See final results" else "Next round", onContinue)
+        if (!completed) TextButton(onEnd, Modifier.fillMaxWidth()) { Text("Finish the game now") }
     }
 }
 
 @Composable
 private fun FinalScreen(state: AppUiState, onRematch: () -> Unit, onHome: () -> Unit) {
-    val teams = state.session?.settings?.teams.orEmpty().sortedByDescending { it.score }
+    val session = state.session
+    val teams = session?.settings?.teams.orEmpty().sortedByDescending { it.score }
     val winner = teams.firstOrNull()
+    val together = teams.size <= 1
+    val tie = teams.size > 1 && teams[0].score == teams[1].score
+    val gameName = if (session?.settings?.playlist?.isNotEmpty() == true) "Party mix" else session?.settings?.gameType?.displayName()?.friendlyTitle() ?: "Game"
     val context = LocalContext.current
-    Page("THAT'S A WRAP", eyebrow = "FINAL SCORE") {
-        Spacer(Modifier.height(10.dp))
-        Surface(shape = CircleShape, color = Acid, modifier = Modifier.size(126.dp)) { Box(contentAlignment = Alignment.Center) { Text("WIN", color = Ink, fontSize = 38.sp, fontWeight = FontWeight.Black) } }
-        Text(winner?.name ?: "Winner", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center)
-        Text("ABSOLUTE MIME LEGENDS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Black)
-        teams.forEachIndexed { index, team ->
-            Surface(Modifier.fillMaxWidth(), color = if (index == 0) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("${index + 1}.  ${team.name}", fontSize = 19.sp, fontWeight = FontWeight.Bold); Text("${team.score}", fontSize = 26.sp, fontWeight = FontWeight.Black) }
-            }
-        }
+    val colors = MaterialTheme.colorScheme
+    BackHandler(onBack = onHome)
+    Page("Game over", eyebrow = gameName) {
         Spacer(Modifier.weight(1f))
+        session?.settings?.let { GameCover(it.gameType, Modifier.size(120.dp).clip(RoundedCornerShape(28.dp))) }
+        Text(when { together -> "${winner?.score ?: 0} points together!"; tie -> "It's a tie!"; else -> "${winner?.name} wins!" },
+            style = MaterialTheme.typography.headlineLarge, color = colors.secondary, textAlign = TextAlign.Center)
+        if (!together) teams.forEachIndexed { index, team ->
+            Surface(Modifier.fillMaxWidth(), color = if (index == 0 && !tie) Acid.copy(alpha = .35f) else colors.surface, shape = RoundedCornerShape(16.dp)) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(team.name, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(team.players.joinToString(", "), color = colors.onSurfaceVariant, fontSize = 12.sp, lineHeight = 16.sp)
+                    }
+                    Text("${team.score}", fontSize = 26.sp, fontWeight = FontWeight.Black)
+                }
+            }
+        } else Text(winner?.players?.joinToString(", ").orEmpty(), color = colors.onSurfaceVariant, textAlign = TextAlign.Center)
+        Spacer(Modifier.weight(1f))
+        PartyButton("Play again", onRematch)
         OutlinedButton({
-            val text = teams.joinToString(prefix = "Party Mode results\n", separator = "\n") { "${it.name}: ${it.score}" }
+            val text = teams.joinToString(prefix = "$gameName results\n", separator = "\n") { "${it.name}: ${it.score}" }
             context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Share results"))
-        }, Modifier.fillMaxWidth()) { Text("SHARE RESULTS") }
-        PartyButton("REMATCH", onRematch)
-        TextButton(onHome, Modifier.fillMaxWidth()) { Text("Back home") }
+        }, Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Share results") }
+        TextButton(onHome, Modifier.fillMaxWidth()) { Text("Choose another game") }
     }
 }
 
 @Composable
-private fun CustomDeckScreen(vm: AppViewModel, saved: (String) -> Unit) {
+private fun CustomDeckScreen(vm: AppViewModel, onBack: () -> Unit, useAfterSave: Boolean = true, saved: (String) -> Unit) {
     var title by remember { mutableStateOf("") }
     var prompts by remember { mutableStateOf("") }
     val context = LocalContext.current
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) prompts = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
     }
-    Page("MAKE IT PERSONAL", eyebrow = "CUSTOM DECK") {
-        Card(Modifier.fillMaxWidth(), shape = PartyShape, colors = CardDefaults.cardColors(containerColor = Sky), border = BorderStroke(2.dp, Ink)) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("INSIDE JOKES WELCOME.", style = MaterialTheme.typography.headlineMedium, color = Ink)
-                Text("Add one prompt per line or import a file.", color = Ink.copy(alpha = .7f))
-            }
-        }
-        OutlinedButton({ importer.launch(arrayOf("text/plain", "text/csv", "application/csv")) }, Modifier.fillMaxWidth().height(54.dp), shape = PartyShape) { Text("IMPORT TXT OR CSV") }
-        OutlinedTextField(title, { title = it }, label = { Text("Deck name") }, shape = PartyShape, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(prompts, { prompts = it }, label = { Text("Prompts") }, minLines = 10, shape = PartyShape, modifier = Modifier.fillMaxWidth().weight(1f))
-        PartyButton("SAVE AND USE", onClick = { vm.saveCustomDeck(title, prompts, saved) })
+    val count = prompts.lineSequence().flatMap { it.split(',').asSequence() }.count { it.isNotBlank() }
+    Page("New card deck", eyebrow = "Write your own charades cards: inside jokes, friends' names, family moments.", onBack = onBack) {
+        OutlinedTextField(title, { title = it.take(60) }, label = { Text("Deck name") }, placeholder = { Text("e.g. Family trip 2026") }, singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(prompts, { prompts = it }, label = { Text("Cards: one per line") }, placeholder = { Text("Dad's dance moves\nThe lost suitcase\nAunty's famous biryani") },
+            minLines = 6, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().weight(1f),
+            supportingText = { Text("$count ${if (count == 1) "card" else "cards"}") })
+        TextButton({ importer.launch(arrayOf("text/plain", "text/csv", "application/csv")) }, Modifier.fillMaxWidth()) { Text("Or import a .txt / .csv file") }
+        PartyButton(if (useAfterSave) "Save and use this deck" else "Save deck", onClick = { vm.saveCustomDeck(title, prompts, saved) }, enabled = title.isNotBlank() && count > 0)
     }
 }
 
 @Composable
-private fun SettingsScreen(state: AppUiState, vm: AppViewModel, onSignOut: () -> Unit) {
+private fun SettingsScreen(state: AppUiState, vm: AppViewModel, onBack: () -> Unit) {
     var showAgeGate by remember { mutableStateOf(false) }
-    Page("TUNE THE CHAOS", scrollable = true, eyebrow = "SETTINGS") {
-        PartyPanel("TILT SENSITIVITY", Sky) {
-            Text("${state.settings.tiltThreshold.roundToInt()}° gesture threshold", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Slider(state.settings.tiltThreshold, vm::setThreshold, valueRange = 30f..75f)
-        }
-        PartyPanel("SOUND", Tangerine) {
-            Text("Volume ${(state.settings.soundVolume * 100).roundToInt()}%", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val colors = MaterialTheme.colorScheme
+    Page("Settings", scrollable = true, onBack = onBack) {
+        PartyPanel("Sound", Tangerine) {
+            Text("Volume ${(state.settings.soundVolume * 100).roundToInt()}%", color = colors.onSurfaceVariant)
             Slider(state.settings.soundVolume, vm::setSoundVolume, valueRange = 0f..1f)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("CHIME", "ARCADE").forEach { pack -> PartyChip(pack, state.settings.soundPack == pack) { vm.setSoundPack(pack) } }
+                listOf("CHIME" to "Soft chime", "ARCADE" to "Arcade beeps").forEach { (pack, label) -> PartyChip(label, state.settings.soundPack == pack) { vm.setSoundPack(pack) } }
             }
         }
-        PartyPanel("PARTY LIGHTING", Acid) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("SUNNY", "CONTRAST").forEachIndexed { index, label ->
-                    val theme = listOf("LIGHT", "HIGH_CONTRAST")[index]
+        PartyPanel("Forehead tilt sensitivity", Sky) {
+            Text("How far you tilt the phone to mark an answer in forehead mode: ${state.settings.tiltThreshold.roundToInt()}°. Lower is more sensitive.", color = colors.onSurfaceVariant)
+            Slider(state.settings.tiltThreshold, vm::setThreshold, valueRange = 30f..75f)
+        }
+        PartyPanel("Display", Acid) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("LIGHT" to "Light", "HIGH_CONTRAST" to "High contrast").forEach { (theme, label) ->
                     PartyChip(label, state.settings.theme == theme) { vm.setTheme(theme) }
                 }
             }
         }
-        Card(Modifier.fillMaxWidth(), shape = PartyShape, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
+        Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = colors.surfaceVariant) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) { Text("After Dark deck", fontWeight = FontWeight.Bold); Text("Hidden unless age-confirmed", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                Checkbox(state.settings.adultUnlocked, { enabled -> if (enabled) showAgeGate = true else vm.unlockAdult(false) })
+                Column(Modifier.weight(1f)) { Text("Show 18+ cards", fontWeight = FontWeight.Bold); Text("Adds the After Dark decks. Off by default.", color = colors.onSurfaceVariant, fontSize = 13.sp) }
+                Switch(state.settings.adultUnlocked, { enabled -> if (enabled) showAgeGate = true else vm.unlockAdult(false) })
             }
         }
-        PartyPanel("ACCOUNT", Pink) {
-            Text(state.user?.email ?: state.user?.displayName ?: "Guest player · saved on this phone", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth(), shape = PartyShape) { Text(if (state.user == null) "EXIT GUEST MODE" else "SIGN OUT") }
-        }
-        Text("The game works offline. Deck and match changes synchronize automatically when a connection returns.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Everything is saved on this phone and works offline. No account needed — your games and decks back up automatically when you're online.", color = colors.onSurfaceVariant, fontSize = 13.sp)
     }
-    if (showAgeGate) AlertDialog(onDismissRequest = { showAgeGate = false }, title = { Text("Adults only") }, text = { Text("Confirm that you are 18 or older to reveal the After Dark deck on this device.") }, confirmButton = { Button({ vm.unlockAdult(true); showAgeGate = false }) { Text("I AM 18+") } }, dismissButton = { TextButton({ showAgeGate = false }) { Text("Cancel") } })
+    if (showAgeGate) AlertDialog(onDismissRequest = { showAgeGate = false }, title = { Text("Adults only") }, text = { Text("Confirm that you are 18 or older to show the After Dark decks on this phone.") }, confirmButton = { Button({ vm.unlockAdult(true); showAgeGate = false }) { Text("I am 18+") } }, dismissButton = { TextButton({ showAgeGate = false }) { Text("Cancel") } })
 }
 
 @Composable
-private fun Page(title: String, scrollable: Boolean = false, eyebrow: String? = null, content: @Composable ColumnScope.() -> Unit) {
+private fun Page(title: String, scrollable: Boolean = false, eyebrow: String? = null, onBack: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val scrollState = rememberScrollState()
-    val accentWash = MaterialTheme.colorScheme.primary.copy(alpha = .08f)
-    val secondaryWash = MaterialTheme.colorScheme.secondary.copy(alpha = .06f)
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawCircle(accentWash, size.minDimension * .38f, Offset(size.width * 1.02f, -20f))
-            drawCircle(secondaryWash, size.minDimension * .22f, Offset(-20f, size.height * .82f))
-        }
-        val baseModifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 22.dp)
-        val pageModifier = if (scrollable) baseModifier.verticalScroll(scrollState) else baseModifier
-        Column(pageModifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(title, style = MaterialTheme.typography.headlineLarge)
-                eyebrow?.let {
-                    Surface(color = MaterialTheme.colorScheme.secondary.copy(alpha = .12f), shape = CircleShape) {
-                        Text(it, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = .7.sp)
+    val colors = MaterialTheme.colorScheme
+    val baseModifier = Modifier.fillMaxSize().background(colors.background).imePadding().padding(horizontal = 20.dp, vertical = 14.dp)
+    val pageModifier = if (scrollable) baseModifier.verticalScroll(scrollState) else baseModifier
+    Column(pageModifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (onBack != null) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onBack, Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Back" }, contentPadding = PaddingValues(start = 0.dp, end = 12.dp)) {
+                    Canvas(Modifier.size(20.dp)) {
+                        val stroke = size.width * .1f
+                        drawLine(colors.primary, Offset(size.width * .8f, size.height * .5f), Offset(size.width * .2f, size.height * .5f), strokeWidth = stroke)
+                        drawLine(colors.primary, Offset(size.width * .2f, size.height * .5f), Offset(size.width * .5f, size.height * .2f), strokeWidth = stroke)
+                        drawLine(colors.primary, Offset(size.width * .2f, size.height * .5f), Offset(size.width * .5f, size.height * .8f), strokeWidth = stroke)
                     }
+                    Spacer(Modifier.width(7.dp))
+                    Text("Back")
                 }
+                Spacer(Modifier.weight(1f))
             }
-            content()
         }
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(title, style = MaterialTheme.typography.headlineLarge)
+            eyebrow?.let { Text(it, color = colors.onSurfaceVariant, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold) }
+        }
+        content()
     }
 }
 
 @Composable
 private fun PartyButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().height(60.dp), shape = PartyShape) {
-        Text(label, fontSize = 17.sp, fontWeight = FontWeight.Black)
-    }
-}
-
-@Composable
-private fun StatBadge(value: String, label: String, modifier: Modifier = Modifier) {
-    Surface(modifier, color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
-        Column(Modifier.padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp), shape = PartyShape) {
+        Text(label, fontSize = 15.sp, lineHeight = 20.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.ExtraBold)
     }
 }
 
 @Composable
 private fun PartyPanel(title: String, accent: Color, content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shape = PartyShape,
-        border = BorderStroke(2.dp, accent.copy(alpha = .72f)),
-    ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.size(14.dp).background(accent, RoundedCornerShape(5.dp)))
-                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Black, letterSpacing = .8.sp)
-            }
-            content()
-        }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(title.friendlyTitle(), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
+        content()
     }
 }
 
@@ -1640,7 +2098,8 @@ private fun PartyChip(label: String, selected: Boolean, onClick: () -> Unit) {
     FilterChip(
         selected = selected,
         onClick = onClick,
-        label = { Text(label, fontWeight = FontWeight.Black, fontSize = 12.sp) },
+        label = { Text(label, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp) },
+        modifier = Modifier.heightIn(min = 48.dp),
         shape = CircleShape,
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -1676,8 +2135,8 @@ private fun GameType.displayName(): String = when (this) {
     GameType.BOMB_DEFUSAL -> "5-SECOND BOMB"
 }
 
-private fun GameType.readyInstruction(): String = when (this) {
-    GameType.CHARADES -> "Phone on forehead. Friends at the ready."
+private fun GameType.readyInstruction(mode: GameMode): String = when (this) {
+    GameType.CHARADES -> if (mode == GameMode.FOREHEAD_TILT) "Hold the phone on your forehead, screen facing out. Tilt down when they guess it, tilt up to skip." else "Only you look at the screen. Act out the card without talking; tap Got it when someone guesses."
     GameType.IMPOSTOR_MIME -> "Gather everyone close. Each person will secretly reveal a role."
     GameType.BLANK_AGENT -> "Each player sees the secret word—except one Blank Agent. Then everyone gives one clue."
     GameType.INSIDE_VOICE -> "Ask yes/no questions, solve the word, then expose the hidden Distorter."
@@ -1696,27 +2155,17 @@ private fun GameType.readyInstruction(): String = when (this) {
     GameType.BOMB_DEFUSAL -> "Name three, tap pass, and do not be holding the phone when it blows."
 }
 
-private fun GameType.minimumPlayers(): Int = when (this) {
-    GameType.INSIDE_VOICE -> 5
-    GameType.IMPOSTOR_MIME, GameType.CROWD_TRAP, GameType.SIGNAL_LINE, GameType.MIME_TELEPHONE -> 4
-    GameType.BLANK_AGENT, GameType.MOST_LIKELY, GameType.FAKE_IT, GameType.TWIN_WORD_SPY -> 3
-    else -> 2
-}
+private fun GameType.minimumPlayers(): Int = guide().minimumPlayers
+
+private fun GameType.difficultyLabel(): String = if (guide().easy) "Easy to learn" else "Takes a minute to learn"
 
 private fun GameType.playerLabel(): String = "${minimumPlayers()}–20 PLAYERS"
 
 private fun GameType.prefersTeams(): Boolean = this in setOf(GameType.CHARADES, GameType.REVERSE_CHARADES, GameType.SOUND_EFFECTS, GameType.DRAW_AND_GUESS, GameType.BOMB_DEFUSAL)
 
-private fun GameType.gameColor(): Color = when (this) {
-    GameType.CHARADES, GameType.SIGNAL_LINE, GameType.WOULD_YOU_RATHER, GameType.TWIN_WORD_SPY -> Sky
-    GameType.IMPOSTOR_MIME, GameType.TRUTH_OR_DARE, GameType.FAKE_IT -> Pink
-    GameType.REVERSE_CHARADES, GameType.MOST_LIKELY, GameType.BOMB_DEFUSAL -> Acid
-    GameType.SOUND_EFFECTS, GameType.INSIDE_VOICE, GameType.DRAW_AND_GUESS -> Green
-    GameType.CROWD_TRAP, GameType.NEVER_HAVE_I_EVER, GameType.MIME_TELEPHONE -> Tangerine
-    GameType.BLANK_AGENT -> Color(0xFFE7DFFF)
-}
+private fun GameType.gameColor(): Color = offlineGameCatalog.first { it.type == this }.color
 
-private fun gameForeground(background: Color): Color = if (background == Ink) Color.White else Ink
+private fun gameForeground(background: Color): Color = if (background == Ink || background == Sky) Color.White else Ink
 
 private fun GameType.teamRule(): String = when (this) {
     GameType.CHARADES -> "One actor per turn. Play as one group or let the app split two teams."

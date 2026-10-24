@@ -75,5 +75,25 @@ class GameEngineTest {
         assertEquals(PromptStatus.PENALTY, exploded.results.single().status)
         assertEquals(-1, exploded.score)
     }
+
+    @Test fun rematch_preserves_roster_and_options_but_resets_scores_and_progress() {
+        val old = GameSession(settings = MatchSettings(teams = teams.map { it.copy(score = 12) }, totalRounds = 3), currentRound = 3, completed = true)
+        val fresh = engine.rematch(old)
+        assertTrue(fresh.id != old.id)
+        assertEquals(old.settings.teams.map { it.players }, fresh.settings.teams.map { it.players })
+        assertTrue(fresh.settings.teams.all { it.score == 0 })
+        assertEquals(3, fresh.settings.totalRounds)
+        assertEquals(0, fresh.currentRound)
+        assertTrue(fresh.rounds.isEmpty())
+        assertFalse(fresh.completed)
+    }
+
+    @Test fun single_group_rotates_the_actor_after_each_turn() {
+        val group = Team(id = "party", name = "Party", players = listOf("Asha", "Ben", "Cleo"))
+        var session = GameSession(settings = MatchSettings(teams = listOf(group), totalRounds = 5))
+        repeat(4) { session = engine.finishRound(engine.start(session, prompts)) }
+        assertEquals(listOf("Asha", "Ben", "Cleo", "Asha"), session.rounds.map { it.actorName })
+        assertFalse(session.completed)
+    }
 }
 

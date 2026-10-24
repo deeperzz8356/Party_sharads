@@ -1,0 +1,76 @@
+{
+  "project_info": {
+    "project_number": "207590647791",
+    "project_id": "project-3d0049ce-fc46-4ebb-a8a",
+    "storage_bucket": "project-3d0049ce-fc46-4ebb-a8a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:207590647791:android:72f792de4c876afbbbb81a",
+        "android_client_info": {
+          "package_name": "com.dev.sharads"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "207590647791-d5hio1qfter79dovte7fgs2q21on562l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKNdVH76Ciu_sMtvQneR4Tc5BNpzpwhZs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "207590647791-d5hio1qfter79dovte7fgs2q21on562l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:207590647791:android:1e6f6212d6464700bbb81a",
+        "android_client_info": {
+          "package_name": "com.dumbcharades.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "207590647791-r2824p3vcmhkbr5cnosasrhup944ubfb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dumbcharades.app",
+            "certificate_hash": "caf111d7e565bd9a6fed94bfd253b36907f09ab4"
+          }
+        },
+        {
+          "client_id": "207590647791-d5hio1qfter79dovte7fgs2q21on562l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKNdVH76Ciu_sMtvQneR4Tc5BNpzpwhZs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "207590647791-d5hio1qfter79dovte7fgs2q21on562l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,36 @@
+rules_version = '2';
+// Private native snapshots: players/{uid}/{custom_decks|game_sessions}/{id}.
+// Fields: id (immutable UUID string), payload (bounded JSON string),
+// updatedAt (server timestamp). No roles, public profiles, or cross-user sharing.
+// JSON is opaque backup data: clients decode and validate before local use.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function isValidSnapshot(data, id, maximum) {
+      return data.keys().hasAll(['id', 'payload', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'payload', 'updatedAt'])
+        && data.id is string && data.id.size() == 36 && data.id == id
+        && data.payload is string && data.payload.size() > 0 && data.payload.size() <= maximum
+        && data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+    match /players/{uid}/custom_decks/{id} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidSnapshot(request.resource.data, id, 200000);
+      allow update: if isOwner(uid) && isValidSnapshot(request.resource.data, id, 200000)
+        && request.resource.data.id == resource.data.id;
+      allow delete: if isOwner(uid);
+    }
+    match /players/{uid}/game_sessions/{id} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidSnapshot(request.resource.data, id, 500000);
+      allow update: if isOwner(uid) && isValidSnapshot(request.resource.data, id, 500000)
+        && request.resource.data.id == resource.data.id;
+      allow delete: if isOwner(uid);
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

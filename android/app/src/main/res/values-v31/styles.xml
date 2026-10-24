@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DumbCharades" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">@font/nunito_medium</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">#FFF6E9</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#FFF6E9</item>
+        <item name="android:navigationBarColor">#FFF6E9</item>
+        <item name="android:windowSplashScreenBackground">#FFF6E9</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/party_hub_logo</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+    </style>
+</resources>

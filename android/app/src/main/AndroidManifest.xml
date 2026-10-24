@@ -6,12 +6,15 @@
     <application
         android:name=".DumbCharadesApplication"
         android:allowBackup="true"
-        android:label="Dumb Charades"
+        android:icon="@drawable/party_hub_logo"
+        android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
+        android:roundIcon="@drawable/party_hub_logo"
         android:theme="@style/Theme.DumbCharades">
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="true"
             android:screenOrientation="unspecified">
             <intent-filter>

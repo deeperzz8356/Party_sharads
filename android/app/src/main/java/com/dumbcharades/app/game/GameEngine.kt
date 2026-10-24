@@ -11,6 +11,11 @@ import java.time.Instant
 import kotlin.random.Random
 
 class GameEngine(private val random: Random = Random.Default) {
+    fun rematch(session: GameSession): GameSession = GameSession(
+        settings = session.settings.copy(teams = session.settings.teams.map { it.copy(score = 0) }),
+        updatedAt = Instant.now().toString(),
+    )
+
     fun start(session: GameSession, prompts: List<Prompt>, now: Long = System.currentTimeMillis()): GameRuntime {
         require(prompts.isNotEmpty()) { "The selected decks contain no prompts" }
         val duration = if (session.activeGameType == GameType.BOMB_DEFUSAL) random.nextInt(30, 91) else session.settings.timerSeconds
